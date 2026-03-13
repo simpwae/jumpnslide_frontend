@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PACKAGES } from '../data';
+import { CheckCircle2Icon } from 'lucide-react';
 export function BookingPage() {
   const { slug } = useParams<{
     slug: string;
@@ -10,8 +11,10 @@ export function BookingPage() {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     date: '',
-    startTime: '16:00',
-    endTime: '20:00',
+    timeSlot: '',
+    customStart: '14:00',
+    customEnd: '18:00',
+    timeConfirmed: false,
     name: '',
     phone: '+971 ',
     email: '',
@@ -30,7 +33,6 @@ export function BookingPage() {
   'Abu Dhabi',
   'Fujairah'];
 
-  // Mock delivery charges
   const deliveryCharges: Record<string, number> = {
     'Ras Al Khaimah': 50,
     Dubai: 150,
@@ -43,26 +45,75 @@ export function BookingPage() {
   const deliveryFee = deliveryCharges[formData.emirate] || 0;
   const total = pkg.price + deliveryFee;
   const advance = Math.ceil(total / 2);
+  const timeSlots = [
+  {
+    id: 'morning',
+    label: 'Morning',
+    time: '8:00 AM - 12:00 PM'
+  },
+  {
+    id: 'afternoon',
+    label: 'Afternoon',
+    time: '12:00 PM - 4:00 PM'
+  },
+  {
+    id: 'evening',
+    label: 'Evening',
+    time: '4:00 PM - 8:00 PM'
+  },
+  {
+    id: 'custom',
+    label: 'Custom Time',
+    time: 'Choose your hours'
+  }];
+
+  // Generate 24h options
+  const hours = Array.from(
+    {
+      length: 24
+    },
+    (_, i) => {
+      const h = i.toString().padStart(2, '0');
+      return [`${h}:00`, `${h}:30`];
+    }
+  ).flat();
   const calculateDuration = (start: string, end: string) => {
     if (!start || !end) return 0;
     const [startHour, startMin] = start.split(':').map(Number);
     const [endHour, endMin] = end.split(':').map(Number);
     let duration = endHour + endMin / 60 - (startHour + startMin / 60);
-    if (duration < 0) duration += 24; // Handle crossing midnight
+    if (duration < 0) duration += 24;
     return duration;
   };
-  const duration = calculateDuration(formData.startTime, formData.endTime);
+  const duration = calculateDuration(formData.customStart, formData.customEnd);
   const isDurationValid = duration > 0 && duration <= 6;
+  const getSelectedTimeText = () => {
+    if (!formData.timeSlot) return '';
+    if (formData.timeSlot !== 'custom') {
+      const slot = timeSlots.find((s) => s.id === formData.timeSlot);
+      return slot?.time || '';
+    }
+    // Format 24h to 12h for display
+    const format12h = (time24: string) => {
+      const [h, m] = time24.split(':');
+      const hour = parseInt(h);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${m} ${ampm}`;
+    };
+    return `${format12h(formData.customStart)} to ${format12h(formData.customEnd)}`;
+  };
+  const isStep1Valid =
+  formData.date &&
+  formData.timeSlot &&
+  formData.timeConfirmed && (
+  formData.timeSlot !== 'custom' || isDurationValid);
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) {
-      if (!isDurationValid) {
-        alert('Event duration must be between 1 and 6 hours.');
-        return;
-      }
+      if (!isStep1Valid) return;
       setStep(2);
     } else {
-      // Generate mock reference
       const ref = `#JNS-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(
         Math.random() * 1000
       ).
@@ -101,79 +152,151 @@ export function BookingPage() {
 
           <form onSubmit={handleSubmit} className="p-8">
             {step === 1 ?
-            <div className="space-y-6">
-                <h2 className="font-bold text-xl text-brand-navy border-b pb-2">
-                  When is the party?
-                </h2>
-                <div className="grid grid-cols-1 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Date
-                    </label>
-                    <input
-                    type="date"
-                    required
-                    value={formData.date}
+            <div className="space-y-8">
+                <div>
+                  <h2 className="font-bold text-xl text-brand-navy mb-4">
+                    Select Date
+                  </h2>
+                  <input
+                  type="date"
+                  required
+                  value={formData.date}
+                  onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    date: e.target.value
+                  })
+                  }
+                  className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none text-lg" />
+                
+                </div>
+
+                <div>
+                  <h2 className="font-bold text-xl text-brand-navy mb-4">
+                    Select Time Slot
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {timeSlots.map((slot) =>
+                  <div
+                    key={slot.id}
+                    onClick={() =>
+                    setFormData({
+                      ...formData,
+                      timeSlot: slot.id,
+                      timeConfirmed: false
+                    })
+                    }
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.timeSlot === slot.id ? 'border-brand-blue bg-blue-50' : 'border-gray-200 hover:border-brand-blue/50'}`}>
+                    
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-bold text-brand-navy">
+                            {slot.label}
+                          </span>
+                          {formData.timeSlot === slot.id &&
+                      <CheckCircle2Icon className="w-5 h-5 text-brand-blue" />
+                      }
+                        </div>
+                        <span className="text-sm text-gray-600">
+                          {slot.time}
+                        </span>
+                      </div>
+                  )}
+                  </div>
+                </div>
+
+                {formData.timeSlot === 'custom' &&
+              <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                    <h3 className="font-bold text-brand-navy mb-4">
+                      Custom Time Selection
+                    </h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Start Time
+                        </label>
+                        <select
+                      value={formData.customStart}
+                      onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        customStart: e.target.value,
+                        timeConfirmed: false
+                      })
+                      }
+                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue bg-white">
+                      
+                          {hours.map((h) =>
+                      <option key={`start-${h}`} value={h}>
+                              {h}
+                            </option>
+                      )}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          End Time (Max 6 hrs)
+                        </label>
+                        <select
+                      value={formData.customEnd}
+                      onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        customEnd: e.target.value,
+                        timeConfirmed: false
+                      })
+                      }
+                      className={`w-full p-3 border rounded-xl focus:ring-2 bg-white ${!isDurationValid ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-brand-blue'}`}>
+                      
+                          {hours.map((h) =>
+                      <option key={`end-${h}`} value={h}>
+                              {h}
+                            </option>
+                      )}
+                        </select>
+                      </div>
+                    </div>
+                    {!isDurationValid &&
+                <p className="text-red-500 text-sm mt-2">
+                        Duration is {duration.toFixed(1)} hours. Maximum allowed
+                        is 6 hours.
+                      </p>
+                }
+                  </div>
+              }
+
+                {formData.timeSlot && (
+              formData.timeSlot !== 'custom' || isDurationValid) &&
+              <div className="bg-blue-50 border border-blue-100 p-6 rounded-xl">
+                      <p className="text-brand-navy font-medium mb-3">
+                        You selected:{' '}
+                        <span className="font-bold text-brand-blue">
+                          {getSelectedTimeText()}
+                        </span>
+                      </p>
+                      <label className="flex items-start cursor-pointer">
+                        <input
+                    type="checkbox"
+                    checked={formData.timeConfirmed}
                     onChange={(e) =>
                     setFormData({
                       ...formData,
-                      date: e.target.value
+                      timeConfirmed: e.target.checked
                     })
                     }
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none" />
+                    className="mt-1 w-5 h-5 text-brand-blue rounded border-gray-300 focus:ring-brand-blue" />
                   
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Start Time
+                        <span className="ml-3 text-sm text-gray-700">
+                          I confirm that my event will take place during these
+                          exact hours. I understand that our team will arrive
+                          prior to the start time for setup.
+                        </span>
                       </label>
-                      <input
-                      type="time"
-                      required
-                      value={formData.startTime}
-                      onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        startTime: e.target.value
-                      })
-                      }
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none" />
-                    
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        End Time (Max 6 hrs)
-                      </label>
-                      <input
-                      type="time"
-                      required
-                      value={formData.endTime}
-                      onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        endTime: e.target.value
-                      })
-                      }
-                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:outline-none ${!isDurationValid && formData.endTime ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-brand-blue focus:border-brand-blue'}`} />
-                    
-                    </div>
-                  </div>
-                  {!isDurationValid && formData.endTime &&
-                <p className="text-red-500 text-sm mt-1">
-                      Duration is {duration.toFixed(1)} hours. Maximum allowed
-                      is 6 hours.
-                    </p>
-                }
-                  {isDurationValid &&
-                <p className="text-green-600 text-sm mt-1">
-                      Duration: {duration.toFixed(1)} hours
-                    </p>
-                }
-                </div>
+              }
+
                 <button
                 type="submit"
-                disabled={!isDurationValid}
+                disabled={!isStep1Valid}
                 className="w-full py-4 bg-brand-navy text-white rounded-xl font-bold mt-8 hover:bg-brand-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 
                   Next: Contact Details
@@ -299,7 +422,6 @@ export function BookingPage() {
                 
                 </div>
 
-                {/* Final Summary inside form */}
                 <div className="bg-gray-50 p-6 rounded-xl mt-8">
                   <h3 className="font-bold text-brand-navy mb-4">
                     Final Summary

@@ -18,6 +18,14 @@ export function PaymentPage() {
     'transfer'
   );
   const [isProcessing, setIsProcessing] = useState(false);
+  // Transfer Form State
+  const [transferData, setTransferData] = useState({
+    bank: '',
+    accountName: '',
+    amount: '',
+    date: '',
+    transactionRef: ''
+  });
   const handleCardPayment = () => {
     setIsProcessing(true);
     setTimeout(() => {
@@ -25,7 +33,15 @@ export function PaymentPage() {
       setStatus('card_success');
     }, 2000);
   };
-  if (status === 'card_success') {
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+    setTimeout(() => {
+      setIsProcessing(false);
+      setStatus('uploaded');
+    }, 1500);
+  };
+  if (status === 'card_success' || status === 'uploaded') {
     return (
       <main className="pt-32 pb-24 min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
@@ -33,37 +49,14 @@ export function PaymentPage() {
             <CheckCircleIcon className="w-10 h-10 text-green-500" />
           </div>
           <h1 className="font-heading font-bold text-2xl text-brand-navy mb-2">
-            Payment Successful!
+            {status === 'card_success' ?
+            'Payment Successful!' :
+            'Transfer Details Submitted!'}
           </h1>
           <p className="text-gray-600 mb-6">
             Thank you. Your payment for booking{' '}
-            <span className="font-bold">{ref}</span> has been processed
-            successfully. We have sent a confirmation email to you.
-          </p>
-          <Link
-            to="/"
-            className="inline-block px-6 py-3 bg-brand-navy text-white rounded-xl font-medium">
-            
-            Return to Home
-          </Link>
-        </div>
-      </main>);
-
-  }
-  if (status === 'uploaded') {
-    return (
-      <main className="pt-32 pb-24 min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircleIcon className="w-10 h-10 text-green-500" />
-          </div>
-          <h1 className="font-heading font-bold text-2xl text-brand-navy mb-2">
-            Receipt Uploaded!
-          </h1>
-          <p className="text-gray-600 mb-6">
-            Thank you. Our team is verifying your payment for booking{' '}
-            <span className="font-bold">{ref}</span>. We will send a
-            confirmation email shortly.
+            <span className="font-bold">{ref}</span> is being processed. We will
+            send a confirmation email shortly.
           </p>
           <Link
             to="/"
@@ -92,9 +85,6 @@ export function PaymentPage() {
             <span className="font-bold text-red-500">24 hours</span> if payment
             is not received.
           </p>
-          <p className="text-sm text-gray-500 mb-8">
-            We've sent an email with the payment link.
-          </p>
           <Link
             to="/"
             className="inline-block px-6 py-3 bg-brand-navy text-white rounded-xl font-medium">
@@ -118,7 +108,6 @@ export function PaymentPage() {
           </p>
         </div>
 
-        {/* Payment Method Selector */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <button
             onClick={() => setPaymentMethod('transfer')}
@@ -182,25 +171,134 @@ export function PaymentPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center mb-8">
-              <h2 className="font-bold text-brand-navy mb-4">
-                Upload Transfer Receipt
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8">
+              <h2 className="font-bold text-brand-navy mb-6">
+                Confirm Your Transfer
               </h2>
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer mb-6">
-                <UploadCloudIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium">
-                  Click to upload or drag and drop
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  PNG, JPG or PDF (Max 5MB)
-                </p>
-              </div>
-              <button
-              onClick={() => setStatus('uploaded')}
-              className="w-full py-4 bg-brand-navy text-white rounded-xl font-bold hover:bg-brand-blue transition-colors">
-              
-                Submit Receipt
-              </button>
+              <form onSubmit={handleTransferSubmit} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Bank Used for Transfer
+                    </label>
+                    <select
+                    required
+                    value={transferData.bank}
+                    onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      bank: e.target.value
+                    })
+                    }
+                    className="w-full p-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-brand-blue outline-none">
+                    
+                      <option value="">Select Bank...</option>
+                      <option value="Emirates NBD">Emirates NBD</option>
+                      <option value="ADCB">ADCB</option>
+                      <option value="Dubai Islamic Bank">
+                        Dubai Islamic Bank
+                      </option>
+                      <option value="Mashreq">Mashreq</option>
+                      <option value="FAB">First Abu Dhabi Bank (FAB)</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Name on Account
+                    </label>
+                    <input
+                    required
+                    type="text"
+                    value={transferData.accountName}
+                    onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      accountName: e.target.value
+                    })
+                    }
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none"
+                    placeholder="John Doe" />
+                  
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Amount Transferred (AED)
+                    </label>
+                    <input
+                    required
+                    type="number"
+                    value={transferData.amount}
+                    onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      amount: e.target.value
+                    })
+                    }
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none"
+                    placeholder="e.g. 1250" />
+                  
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date & Time of Transfer
+                    </label>
+                    <input
+                    required
+                    type="datetime-local"
+                    value={transferData.date}
+                    onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      date: e.target.value
+                    })
+                    }
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none" />
+                  
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Transaction Reference (Optional)
+                  </label>
+                  <input
+                  type="text"
+                  value={transferData.transactionRef}
+                  onChange={(e) =>
+                  setTransferData({
+                    ...transferData,
+                    transactionRef: e.target.value
+                  })
+                  }
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none"
+                  placeholder="e.g. TRN123456789" />
+                
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload Proof (Optional)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer text-center">
+                    <UploadCloudIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 font-medium">
+                      Click to upload screenshot
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                type="submit"
+                disabled={isProcessing}
+                className="w-full py-4 bg-brand-navy text-white rounded-xl font-bold hover:bg-brand-blue transition-colors disabled:opacity-50 mt-4">
+                
+                  {isProcessing ? 'Submitting...' : 'Submit Transfer Details'}
+                </button>
+              </form>
             </div>
           </> :
 

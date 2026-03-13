@@ -9,7 +9,8 @@ import {
   UserIcon,
   MapPinIcon,
   CalendarIcon,
-  PackageIcon } from
+  PackageIcon,
+  LandmarkIcon } from
 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -91,6 +92,14 @@ export function BookingDetailPage() {
       grandTotal: 2909,
       advancePaid: 1455,
       remainingBalance: 1454
+    },
+    transferDetails: {
+      bank: 'Emirates NBD',
+      accountName: 'Sarah Ahmed',
+      amount: '1455',
+      date: '2026-03-05 15:00',
+      transactionRef: 'TRN987654321',
+      hasProof: true
     }
   };
   const getStatusBadge = (status: string) => {
@@ -300,18 +309,15 @@ export function BookingDetailPage() {
               {booking.status === 'Payment Uploaded' &&
               <>
                   <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                    <CheckCircleIcon className="w-4 h-4 mr-2" />
-                    Confirm Booking
+                    <CheckCircleIcon className="w-4 h-4 mr-2" /> Confirm Booking
                   </Button>
                   <Button variant="danger" className="w-full">
-                    <XCircleIcon className="w-4 h-4 mr-2" />
-                    Reject Payment
+                    <XCircleIcon className="w-4 h-4 mr-2" /> Reject Payment
                   </Button>
                 </>
               }
               <Button variant="outline" className="w-full">
-                <MessageCircleIcon className="w-4 h-4 mr-2" />
-                WhatsApp Customer
+                <MessageCircleIcon className="w-4 h-4 mr-2" /> WhatsApp Customer
               </Button>
               <Button
                 variant="ghost"
@@ -322,22 +328,57 @@ export function BookingDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle>Payment Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="aspect-video bg-slate-950 border border-slate-800 rounded-lg flex flex-col items-center justify-center mb-4 cursor-pointer hover:border-brand-blue transition-colors group">
-                <FileTextIcon className="w-8 h-8 text-slate-500 group-hover:text-brand-blue mb-2" />
-                <span className="text-sm text-slate-400 group-hover:text-slate-300">
-                  View Receipt Image
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 text-center">
-                Uploaded on 2026-03-05 15:00
-              </p>
-            </CardContent>
-          </Card>
+          {booking.transferDetails &&
+          <Card className="border-amber-500/30">
+              <CardHeader className="pb-4 flex flex-row items-center space-x-2">
+                <LandmarkIcon className="w-5 h-5 text-amber-500" />
+                <CardTitle>Transfer Confirmation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-sm mb-4">
+                  <div className="flex justify-between text-slate-300">
+                    <span>Bank</span>
+                    <span className="font-medium text-slate-100">
+                      {booking.transferDetails.bank}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Account Name</span>
+                    <span className="font-medium text-slate-100">
+                      {booking.transferDetails.accountName}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Amount</span>
+                    <span className="font-medium text-emerald-400">
+                      AED {booking.transferDetails.amount}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Date</span>
+                    <span className="font-medium text-slate-100">
+                      {booking.transferDetails.date}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Ref</span>
+                    <span className="font-medium text-slate-100">
+                      {booking.transferDetails.transactionRef}
+                    </span>
+                  </div>
+                </div>
+
+                {booking.transferDetails.hasProof &&
+              <div className="aspect-video bg-slate-950 border border-slate-800 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-brand-blue transition-colors group">
+                    <FileTextIcon className="w-8 h-8 text-slate-500 group-hover:text-brand-blue mb-2" />
+                    <span className="text-sm text-slate-400 group-hover:text-slate-300">
+                      View Receipt Image
+                    </span>
+                  </div>
+              }
+              </CardContent>
+            </Card>
+          }
 
           <Card>
             <CardHeader className="pb-4">

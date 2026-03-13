@@ -1,14 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import {
-  StarIcon,
-  CheckCircle2Icon,
-  PlusIcon,
-  MinusIcon,
-  AlertCircleIcon } from
-'lucide-react';
+import { StarIcon, PlusIcon, MinusIcon, AlertCircleIcon } from 'lucide-react';
 import { PACKAGES, EQUIPMENT } from '../data';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ItemCard } from '../components/ItemCard';
 export function PackagePage() {
   const { slug } = useParams<{
     slug: string;
@@ -26,8 +20,7 @@ export function PackagePage() {
     chairs: 0,
     tables: 0
   });
-  // Mobile accordion state
-  const [activeSection, setActiveSection] = useState<string>('inflatables');
+  const [selectedFreeItem, setSelectedFreeItem] = useState<string | null>(null);
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [slug]);
@@ -93,11 +86,10 @@ export function PackagePage() {
     }));
   };
   // Pricing Calculation
-  const EXTRA_SERVING_PRICE = 50; // AED per 10 extra
+  const EXTRA_SERVING_PRICE = 50;
   const EXTRA_CHAIR_PRICE = 10;
   const EXTRA_TABLE_PRICE = 30;
   let extrasTotal = 0;
-  // Calculate extras total for fixed machines as well
   const allServings = {
     ...servings
   };
@@ -111,14 +103,17 @@ export function PackagePage() {
   });
   extrasTotal += extras.chairs * EXTRA_CHAIR_PRICE;
   extrasTotal += extras.tables * EXTRA_TABLE_PRICE;
-  if (wantsPool && pkg.inclusions.poolOption === 'optional') extrasTotal += 200; // Mock pool price
+  if (wantsPool && pkg.inclusions.poolOption === 'optional') extrasTotal += 200;
   const total = pkg.price + extrasTotal;
   const advance = Math.ceil(total / 2);
+  // Validation
+  const hasFreeChoice = pkg.inclusions.freeItems.some((i) => i.includes('or'));
   const isComplete =
   (pkg.inclusions.selectableInflatables === 0 ||
   selectedInflatable !== null) && (
   pkg.inclusions.selectableMachines === 0 ||
-  selectedMachines.length === pkg.inclusions.selectableMachines);
+  selectedMachines.length === pkg.inclusions.selectableMachines) && (
+  !hasFreeChoice || selectedFreeItem !== null);
   const hasChairsOrTables = pkg.inclusions.fixedItems.some(
     (item) =>
     item.toLowerCase().includes('chair') ||
@@ -134,9 +129,36 @@ export function PackagePage() {
       }));
     }
   };
+  // Parse Free Items for choices
+  const parsedFreeItems = pkg.inclusions.freeItems.flatMap((item) => {
+    if (item === 'Mini Bouncy Castle (Unicorn or Spider-Man)') {
+      return [
+      {
+        id: 'free-unicorn',
+        name: 'Mini Bouncy Castle (Unicorn)',
+        gradient: 'from-fuchsia-300 to-cyan-300',
+        isChoice: true
+      },
+      {
+        id: 'free-spiderman',
+        name: 'Mini Bouncy Castle (Spider-Man)',
+        gradient: 'from-red-600 to-blue-600',
+        isChoice: true
+      }];
+
+    }
+    return [
+    {
+      id: item,
+      name: item,
+      gradient: 'from-brand-blue to-brand-purple',
+      isChoice: false
+    }];
+
+  });
   return (
     <main className="pt-20 bg-gray-50 min-h-screen pb-24">
-      {/* Section 1: Header */}
+      {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           {pkg.tag &&
@@ -172,362 +194,261 @@ export function PackagePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Left Column: Details & Wizard */}
-          <div className="lg:col-span-2 space-y-12">
-            {/* Section 2: What's Included (Typography Only) */}
+          {/* Left Column: Customization Flow */}
+          <div className="lg:col-span-2 space-y-10">
+            {/* 1. Main Feature (Inflatables / Playgrounds) */}
             <section>
-              <h2 className="font-heading font-bold text-2xl text-brand-navy mb-6">
-                What's Included
-              </h2>
-              <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-                <ul className="space-y-4">
-                  {pkg.inclusions.selectableInflatables > 0 &&
-                  <li className="flex justify-between items-baseline border-b border-gray-50 pb-4">
-                      <div>
-                        <span className="font-medium text-brand-navy block text-lg">
-                          Inflatable Setup
-                        </span>
-                        <span
-                        className="text-sm text-brand-blue cursor-pointer"
-                        onClick={() => setActiveSection('inflatables')}>
-                        
-                          (Choose from {availableInflatables.length} options)
-                        </span>
-                      </div>
-                    </li>
-                  }
-                  {pkg.inclusions.selectableMachines > 0 &&
-                  <li className="flex justify-between items-baseline border-b border-gray-50 pb-4">
-                      <div>
-                        <span className="font-medium text-brand-navy block text-lg">
-                          Snack Machines
-                        </span>
-                        <span
-                        className="text-sm text-brand-blue cursor-pointer"
-                        onClick={() => setActiveSection('machines')}>
-                        
-                          (Choose {pkg.inclusions.selectableMachines} options)
-                        </span>
-                      </div>
-                      <span className="text-gray-500 text-sm">
-                        {pkg.servingsPerMachine} servings each
-                      </span>
-                    </li>
-                  }
-                  {pkg.inclusions.fixedMachines.length > 0 &&
-                  <li className="flex justify-between items-baseline border-b border-gray-50 pb-4">
-                      <div>
-                        <span className="font-medium text-brand-navy block text-lg">
-                          Included Snacks
-                        </span>
-                        <span className="text-sm text-gray-500 block">
-                          {pkg.inclusions.fixedMachines.
-                        map(
-                          (id) => EQUIPMENT.find((e) => e.id === id)?.name
-                        ).
-                        join(' · ')}
-                        </span>
-                      </div>
-                      <span className="text-gray-500 text-sm">
-                        {pkg.servingsPerMachine} servings each
-                      </span>
-                    </li>
-                  }
-                  {pkg.inclusions.fixedItems.length > 0 &&
-                  <li className="flex justify-between items-baseline border-b border-gray-50 pb-4">
-                      <div>
-                        <span className="font-medium text-brand-navy block text-lg">
-                          Equipment & Setup
-                        </span>
-                        <span className="text-sm text-gray-500 block">
-                          {pkg.inclusions.fixedItems.join(' · ')}
-                        </span>
-                      </div>
-                    </li>
-                  }
-                  {pkg.inclusions.freeItems.length > 0 &&
-                  <li className="flex justify-between items-baseline pt-2">
-                      <div>
-                        <span className="font-medium text-brand-navy block text-lg">
-                          Complimentary Add-ons
-                        </span>
-                        <span className="text-sm text-gray-500 block">
-                          {pkg.inclusions.freeItems.join(' · ')}
-                        </span>
-                      </div>
-                      <span className="font-bold text-green-600 uppercase text-sm tracking-wider">
-                        Free
-                      </span>
-                    </li>
-                  }
-                </ul>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-heading font-bold text-2xl text-brand-navy">
+                  1. Main Feature
+                </h2>
+                {pkg.inclusions.selectableInflatables > 0 &&
+                <span className="text-sm font-medium text-gray-500">
+                    Choose 1
+                  </span>
+                }
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {pkg.inclusions.selectableInflatables > 0 ?
+                availableInflatables.map((item) =>
+                <ItemCard
+                  key={item.id}
+                  title={item.name}
+                  subtitle={item.isLarge ? 'Large' : 'Standard'}
+                  gradient={item.imagePlaceholder}
+                  selectable={true}
+                  selected={selectedInflatable === item.id}
+                  onClick={() => setSelectedInflatable(item.id)} />
+
+                ) :
+                pkg.inclusions.fixedItems.
+                filter((i) => i.toLowerCase().includes('playground')).
+                map((item, idx) =>
+                <ItemCard
+                  key={idx}
+                  title={item}
+                  gradient="from-green-500 to-emerald-700"
+                  badge={{
+                    text: 'Included',
+                    variant: 'included'
+                  }} />
+
+                )}
               </div>
             </section>
 
-            {/* Section 3: Customization Wizard */}
+            {/* 2. Pool (If applicable) */}
+            {pkg.inclusions.poolOption !== 'none' &&
             <section>
-              <h2 className="font-heading font-bold text-2xl text-brand-navy mb-6">
-                Customize Your Package
-              </h2>
-
-              <div className="space-y-6">
-                {/* 3A: Inflatables */}
-                {pkg.inclusions.selectableInflatables > 0 &&
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                      <h3 className="font-bold text-lg text-brand-navy">
-                        1. Choose Inflatable
-                      </h3>
-                      <span className="text-sm font-medium text-gray-500">
-                        Selected: {selectedInflatable ? '1' : '0'}/1
-                      </span>
-                    </div>
-                    <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {availableInflatables.map((item) =>
-                    <div
-                      key={item.id}
-                      onClick={() => setSelectedInflatable(item.id)}
-                      className={`cursor-pointer rounded-xl border-2 transition-all overflow-hidden ${selectedInflatable === item.id ? 'border-green-500 shadow-md' : 'border-gray-100 hover:border-brand-blue/50'}`}>
-                      
-                          <div
-                        className={`h-24 bg-gradient-to-br ${item.imagePlaceholder} relative`}>
-                        
-                            {selectedInflatable === item.id &&
-                        <div className="absolute top-2 right-2 bg-white rounded-full p-0.5">
-                                <CheckCircle2Icon className="w-5 h-5 text-green-500" />
-                              </div>
-                        }
-                          </div>
-                          <div className="p-3 text-center">
-                            <p className="font-medium text-sm text-brand-navy">
-                              {item.name}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {item.isLarge ? 'Large' : 'Small'}
-                            </p>
-                          </div>
-                        </div>
-                    )}
-                    </div>
-                  </div>
-                }
-
-                {/* 3B: Pool Toggle */}
-                {pkg.inclusions.poolOption !== 'none' &&
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg text-brand-navy">
-                        Add Inflatable Pool
-                      </h3>
-                      {pkg.inclusions.poolOption === 'included' ?
-                    <p className="text-sm text-green-600 font-medium">
-                          Included free in this package
-                        </p> :
-
-                    <p className="text-sm text-gray-500">+ AED 200</p>
+                <h2 className="font-heading font-bold text-2xl text-brand-navy mb-4">
+                  2. Splash Pool
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="relative">
+                    <ItemCard
+                    title="Inflatable Pool"
+                    subtitle={
+                    pkg.inclusions.poolOption === 'included' ?
+                    'Included free' :
+                    '+ AED 200'
                     }
-                      {!isPoolAllowed && selectedInflatable &&
-                    <p className="text-xs text-red-500 mt-1 flex items-center">
-                          <AlertCircleIcon className="w-3 h-3 mr-1" /> Available
-                          with large inflatables only
-                        </p>
-                    }
-                    </div>
-                    <button
-                    disabled={!isPoolAllowed}
-                    onClick={() => setWantsPool(!wantsPool)}
-                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${wantsPool ? 'bg-brand-blue' : 'bg-gray-200'} ${!isPoolAllowed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                    
-                      <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${wantsPool ? 'translate-x-8' : 'translate-x-1'}`} />
-                    
-                    </button>
-                  </div>
-                }
-
-                {/* 3C: Snack Machines */}
-                {pkg.inclusions.selectableMachines > 0 &&
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                      <h3 className="font-bold text-lg text-brand-navy">
-                        2. Choose Snack Machines
-                      </h3>
-                      <span
-                      className={`text-sm font-medium ${selectedMachines.length === pkg.inclusions.selectableMachines ? 'text-green-600' : 'text-gray-500'}`}>
+                    gradient="from-cyan-400 to-blue-500"
+                    badge={
+                    pkg.inclusions.poolOption === 'included' ?
+                    {
+                      text: 'Included',
+                      variant: 'included'
+                    } :
+                    undefined
+                    } />
+                  
+                    {pkg.inclusions.poolOption === 'optional' &&
+                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-xl shadow-sm flex items-center gap-3">
+                        <span className="text-sm font-bold text-brand-navy">
+                          Add Pool?
+                        </span>
+                        <button
+                      disabled={!isPoolAllowed}
+                      onClick={() => setWantsPool(!wantsPool)}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${wantsPool ? 'bg-brand-blue' : 'bg-gray-200'} ${!isPoolAllowed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                       
-                        Selected: {selectedMachines.length}/
-                        {pkg.inclusions.selectableMachines}
-                      </span>
-                    </div>
-                    <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {availableMachines.map((item) =>
-                    <div
-                      key={item.id}
-                      onClick={() => toggleMachine(item.id)}
-                      className={`cursor-pointer rounded-xl border-2 transition-all overflow-hidden ${selectedMachines.includes(item.id) ? 'border-green-500 shadow-md' : 'border-gray-100 hover:border-brand-blue/50'} ${!selectedMachines.includes(item.id) && selectedMachines.length >= pkg.inclusions.selectableMachines ? 'opacity-50' : ''}`}>
+                          <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${wantsPool ? 'translate-x-8' : 'translate-x-1'}`} />
                       
-                          <div
-                        className={`h-20 bg-gradient-to-br ${item.imagePlaceholder} relative`}>
-                        
-                            {selectedMachines.includes(item.id) &&
-                        <div className="absolute top-2 right-2 bg-white rounded-full p-0.5">
-                                <CheckCircle2Icon className="w-4 h-4 text-green-500" />
-                              </div>
-                        }
-                          </div>
-                          <div className="p-2 text-center">
-                            <p className="font-medium text-xs text-brand-navy">
-                              {item.name}
-                            </p>
-                          </div>
-                        </div>
-                    )}
-                    </div>
-
-                    {/* 3D: Servings */}
-                    {selectedMachines.length > 0 &&
-                  <div className="p-6 border-t border-gray-100 bg-gray-50/50">
-                        <h4 className="font-medium text-brand-navy mb-4">
-                          Servings per machine
-                        </h4>
-                        <div className="space-y-4">
-                          {selectedMachines.map((id) => {
-                        const machine = EQUIPMENT.find((e) => e.id === id);
-                        const qty = allServings[id];
-                        const isExtra = qty > pkg.servingsPerMachine;
-                        return (
-                          <div
-                            key={id}
-                            className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
-                            
-                                <div>
-                                  <span className="font-medium text-sm text-brand-navy block">
-                                    {machine?.name}
-                                  </span>
-                                  {isExtra ?
-                              <span className="text-xs text-brand-pink font-medium">
-                                      + AED{' '}
-                                      {(qty - pkg.servingsPerMachine) / 10 *
-                                EXTRA_SERVING_PRICE}
-                                    </span> :
-
-                              <span className="text-xs text-green-600">
-                                      Included ✅
-                                    </span>
-                              }
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                  <button
-                                onClick={() => updateServings(id, -10)}
-                                disabled={qty <= pkg.servingsPerMachine}
-                                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center disabled:opacity-50">
-                                
-                                    <MinusIcon className="w-4 h-4" />
-                                  </button>
-                                  <span className="font-bold w-8 text-center">
-                                    {qty}
-                                  </span>
-                                  <button
-                                onClick={() => updateServings(id, 10)}
-                                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
-                                
-                                    <PlusIcon className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>);
-
-                      })}
-                        </div>
+                        </button>
                       </div>
                   }
                   </div>
-                }
+                </div>
+                {!isPoolAllowed &&
+              selectedInflatable &&
+              pkg.inclusions.poolOption === 'optional' &&
+              <p className="text-sm text-red-500 mt-2 flex items-center">
+                      <AlertCircleIcon className="w-4 h-4 mr-1" /> Pool is only
+                      available with large inflatables.
+                    </p>
+              }
+              </section>
+            }
 
-                {/* Fixed Machines Servings (if any) */}
-                {pkg.inclusions.fixedMachines.length > 0 &&
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-6 bg-gray-50 border-b border-gray-100">
-                      <h3 className="font-bold text-lg text-brand-navy">
-                        {pkg.inclusions.selectableMachines > 0 ? '3' : '2'}.
-                        Extra Snack Servings
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Your package includes {pkg.servingsPerMachine} servings
-                        per machine.
-                      </p>
-                    </div>
-                    <div className="p-6 space-y-4">
-                      {pkg.inclusions.fixedMachines.map((id) => {
-                      const machine = EQUIPMENT.find((e) => e.id === id);
-                      const qty = allServings[id];
-                      const isExtra = qty > pkg.servingsPerMachine;
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
-                          
+            {/* 3. Snacks */}
+            {(pkg.inclusions.selectableMachines > 0 ||
+            pkg.inclusions.fixedMachines.length > 0) &&
+            <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-heading font-bold text-2xl text-brand-navy">
+                    {pkg.inclusions.poolOption !== 'none' ? '3' : '2'}. Party
+                    Snacks
+                  </h2>
+                  {pkg.inclusions.selectableMachines > 0 &&
+                <span
+                  className={`text-sm font-medium ${selectedMachines.length === pkg.inclusions.selectableMachines ? 'text-green-600' : 'text-gray-500'}`}>
+                  
+                      Choose {pkg.inclusions.selectableMachines}
+                    </span>
+                }
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  {pkg.inclusions.selectableMachines > 0 ?
+                availableMachines.map((item) =>
+                <ItemCard
+                  key={item.id}
+                  title={item.name}
+                  gradient={item.imagePlaceholder}
+                  selectable={true}
+                  selected={selectedMachines.includes(item.id)}
+                  disabled={
+                  !selectedMachines.includes(item.id) &&
+                  selectedMachines.length >=
+                  pkg.inclusions.selectableMachines
+                  }
+                  onClick={() => toggleMachine(item.id)} />
+
+                ) :
+                pkg.inclusions.fixedMachines.map((id) => {
+                  const machine = EQUIPMENT.find((e) => e.id === id);
+                  return (
+                    <ItemCard
+                      key={id}
+                      title={machine?.name || id}
+                      gradient={
+                      machine?.imagePlaceholder ||
+                      'from-gray-200 to-gray-300'
+                      }
+                      badge={{
+                        text: 'Included',
+                        variant: 'included'
+                      }} />);
+
+
+                })}
+                </div>
+
+                {/* Extra Servings Section */}
+                {(selectedMachines.length > 0 ||
+              pkg.inclusions.fixedMachines.length > 0) &&
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h4 className="font-bold text-brand-navy mb-4">
+                      Need Extra Servings?
+                    </h4>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Package includes {pkg.servingsPerMachine} servings per
+                      machine.
+                    </p>
+
+                    <div className="space-y-3">
+                      {[
+                  ...selectedMachines,
+                  ...pkg.inclusions.fixedMachines].
+                  map((id) => {
+                    const machine = EQUIPMENT.find((e) => e.id === id);
+                    const qty = allServings[id] || pkg.servingsPerMachine;
+                    const isExtra = qty > pkg.servingsPerMachine;
+                    return (
+                      <div
+                        key={id}
+                        className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        
                             <div>
-                              <span className="font-medium text-sm text-brand-navy block">
+                              <span className="font-medium text-brand-navy block">
                                 {machine?.name}
                               </span>
                               {isExtra ?
-                            <span className="text-xs text-brand-pink font-medium">
+                          <span className="text-xs text-brand-pink font-bold">
                                   + AED{' '}
                                   {(qty - pkg.servingsPerMachine) / 10 *
-                              EXTRA_SERVING_PRICE}
+                            EXTRA_SERVING_PRICE}
                                 </span> :
 
-                            <span className="text-xs text-green-600">
-                                  Included ✅
+                          <span className="text-xs text-green-600 font-medium">
+                                  Included
                                 </span>
-                            }
+                          }
                             </div>
-                            <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-3 bg-white rounded-lg border border-gray-200 p-1">
                               <button
-                              onClick={() =>
-                              updateFixedMachineServings(id, -10)
-                              }
-                              disabled={qty <= pkg.servingsPerMachine}
-                              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center disabled:opacity-50">
-                              
+                            onClick={() =>
+                            updateFixedMachineServings(id, -10)
+                            }
+                            disabled={qty <= pkg.servingsPerMachine}
+                            className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center disabled:opacity-50 hover:bg-gray-100">
+                            
                                 <MinusIcon className="w-4 h-4" />
                               </button>
-                              <span className="font-bold w-8 text-center">
+                              <span className="font-bold w-8 text-center text-brand-navy">
                                 {qty}
                               </span>
                               <button
-                              onClick={() =>
-                              updateFixedMachineServings(id, 10)
-                              }
-                              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
-                              
+                            onClick={() =>
+                            updateFixedMachineServings(id, 10)
+                            }
+                            className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center hover:bg-gray-100">
+                            
                                 <PlusIcon className="w-4 h-4" />
                               </button>
                             </div>
                           </div>);
 
-                    })}
+                  })}
                     </div>
                   </div>
-                }
+              }
+              </section>
+            }
 
-                {/* 3E: Need More? (Extras) */}
+            {/* 4. Party Essentials */}
+            {pkg.inclusions.fixedItems.filter(
+              (i) => !i.toLowerCase().includes('playground')
+            ).length > 0 &&
+            <section>
+                <h2 className="font-heading font-bold text-2xl text-brand-navy mb-4">
+                  Party Essentials
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                  {pkg.inclusions.fixedItems.
+                filter((i) => !i.toLowerCase().includes('playground')).
+                map((item, idx) =>
+                <ItemCard
+                  key={idx}
+                  title={item}
+                  gradient="from-slate-200 to-slate-300"
+                  badge={{
+                    text: 'Included',
+                    variant: 'included'
+                  }} />
+
+                )}
+                </div>
+
                 {hasChairsOrTables &&
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-6 bg-gray-50 border-b border-gray-100">
-                      <h3 className="font-bold text-lg text-brand-navy">
-                        {pkg.inclusions.selectableMachines > 0 &&
-                      pkg.inclusions.fixedMachines.length > 0 ?
-                      '4' :
-                      pkg.inclusions.selectableMachines > 0 ||
-                      pkg.inclusions.fixedMachines.length > 0 ?
-                      '3' :
-                      '2'}
-                        . Need More? (Extras)
-                      </h3>
-                    </div>
-                    <div className="p-6 space-y-4">
-                      <div className="flex items-center justify-between">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h4 className="font-bold text-brand-navy mb-4">
+                      Extra Seating
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
                         <div>
                           <span className="font-medium text-brand-navy block">
                             Extra Kids Chairs
@@ -536,26 +457,26 @@ export function PackagePage() {
                             + AED {EXTRA_CHAIR_PRICE} each
                           </span>
                         </div>
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 bg-white rounded-lg border border-gray-200 p-1">
                           <button
-                          onClick={() => updateExtra('chairs', -1)}
-                          disabled={extras.chairs === 0}
-                          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center disabled:opacity-50">
-                          
+                        onClick={() => updateExtra('chairs', -1)}
+                        disabled={extras.chairs === 0}
+                        className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center disabled:opacity-50 hover:bg-gray-100">
+                        
                             <MinusIcon className="w-4 h-4" />
                           </button>
                           <span className="font-bold w-6 text-center">
                             {extras.chairs}
                           </span>
                           <button
-                          onClick={() => updateExtra('chairs', 1)}
-                          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                          
+                        onClick={() => updateExtra('chairs', 1)}
+                        className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center hover:bg-gray-100">
+                        
                             <PlusIcon className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
                         <div>
                           <span className="font-medium text-brand-navy block">
                             Extra Kids Tables
@@ -564,30 +485,66 @@ export function PackagePage() {
                             + AED {EXTRA_TABLE_PRICE} each
                           </span>
                         </div>
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 bg-white rounded-lg border border-gray-200 p-1">
                           <button
-                          onClick={() => updateExtra('tables', -1)}
-                          disabled={extras.tables === 0}
-                          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center disabled:opacity-50">
-                          
+                        onClick={() => updateExtra('tables', -1)}
+                        disabled={extras.tables === 0}
+                        className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center disabled:opacity-50 hover:bg-gray-100">
+                        
                             <MinusIcon className="w-4 h-4" />
                           </button>
                           <span className="font-bold w-6 text-center">
                             {extras.tables}
                           </span>
                           <button
-                          onClick={() => updateExtra('tables', 1)}
-                          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                          
+                        onClick={() => updateExtra('tables', 1)}
+                        className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center hover:bg-gray-100">
+                        
                             <PlusIcon className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
+              }
+              </section>
+            }
+
+            {/* 5. Complimentary Items */}
+            {parsedFreeItems.length > 0 &&
+            <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-heading font-bold text-2xl text-brand-navy">
+                    Complimentary Gifts
+                  </h2>
+                  {hasFreeChoice &&
+                <span className="text-sm font-medium text-gray-500">
+                      Choose 1
+                    </span>
                 }
-              </div>
-            </section>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {parsedFreeItems.map((item) =>
+                <ItemCard
+                  key={item.id}
+                  title={item.name}
+                  gradient={item.gradient}
+                  badge={{
+                    text: 'Free',
+                    variant: 'free'
+                  }}
+                  selectable={item.isChoice}
+                  selected={item.isChoice && selectedFreeItem === item.id}
+                  onClick={
+                  item.isChoice ?
+                  () => setSelectedFreeItem(item.id) :
+                  undefined
+                  } />
+
+                )}
+                </div>
+              </section>
+            }
           </div>
 
           {/* Right Column: Order Summary (Sticky) */}
@@ -681,7 +638,7 @@ export function PackagePage() {
 
               {!isComplete ?
               <div className="text-center p-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-medium mb-4">
-                  Please complete your selections above to book.
+                  Please complete your selections to book.
                 </div> :
               null}
 
