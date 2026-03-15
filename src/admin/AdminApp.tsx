@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
@@ -13,26 +13,45 @@ import { CalendarPage } from './pages/CalendarPage';
 import { TestimonialsPage } from './pages/TestimonialsPage';
 import { FAQPage } from './pages/FAQPage';
 import { WorkersPage } from './pages/WorkersPage';
+import { supabase } from '../lib/supabase';
+import { Loader2Icon } from 'lucide-react';
 
 export function AdminApp() {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => sessionStorage.getItem('admin_auth') === 'true'
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogin = () => {
-    sessionStorage.setItem('admin_auth', 'true');
-    setIsAuthenticated(true);
-  };
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+      setLoading(false);
+    });
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin_auth');
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsAuthenticated(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2Icon className="w-8 h-8 text-brand-blue animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <>
       {!isAuthenticated ? (
-        <LoginPage onLogin={handleLogin} />
+        <LoginPage onLogin={() => setIsAuthenticated(true)} />
       ) : (
         <AdminLayout onLogout={handleLogout}>
           <Routes>
@@ -56,4 +75,4 @@ export function AdminApp() {
   );
 }
 
-export default AdminApp;  
+export default AdminApp;
