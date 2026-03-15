@@ -15,6 +15,7 @@ import { ContactPage } from './pages/ContactPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { FAQPage } from './pages/FAQPage';
 
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 
@@ -63,6 +64,7 @@ function AppRoutes() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="*" element={<NotFoundPage />} />
+            <Route path="/faq" element={<FAQPage />} />
           </Routes>
         </AnimatePresence>
       </div>

@@ -15,6 +15,7 @@ import { FAQPage } from './pages/FAQPage';
 import { WorkersPage } from './pages/WorkersPage';
 import { supabase } from '../lib/supabase';
 import { Loader2Icon } from 'lucide-react';
+import { AlbumDetailPage } from './pages/AlbumDetailPage';
 
 export function AdminApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -68,6 +69,8 @@ export function AdminApp() {
             <Route path="workers" element={<WorkersPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="gallery" element={<GalleryPage />} />
+            <Route path="gallery/:albumId" element={<AlbumDetailPage />} />
           </Routes>
         </AdminLayout>
       )}

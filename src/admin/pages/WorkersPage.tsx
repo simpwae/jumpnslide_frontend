@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   PlusIcon, EditIcon, TrashIcon, UsersIcon,
   UserCheckIcon, UserXIcon, CalendarIcon,
-  PhoneIcon, XIcon, DollarSignIcon, Loader2Icon
+  PhoneIcon, XIcon, DollarSignIcon, Loader2Icon,
+  AlertCircleIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -12,8 +13,6 @@ import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { EditModal } from '../components/ui/EditModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase } from '../../lib/supabase';
-
-const PAY_PER_EVENT = 150;
 
 const ROLES = [
   'Setup Technician', 'Machine Operator', 'Delivery Driver',
@@ -26,6 +25,7 @@ interface Worker {
   role: string;
   phone: string;
   status: string;
+  default_pay_rate: number;
   created_at: string;
 }
 
@@ -38,6 +38,7 @@ interface Assignment {
   package_name: string;
   time_slot: string;
   location: string;
+  pay_amount: number;
   created_at: string;
 }
 
@@ -52,24 +53,26 @@ export function WorkersPage() {
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [earningsPeriod, setEarningsPeriod] = useState('month');
+  const [earningsPeriod, setEarningsPeriod] = useState('all');
   const [assigningTo, setAssigningTo] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<{ assignmentId: string; workerId: string } | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [editingPay, setEditingPay] = useState<string | null>(null);
+  const [payText, setPayText] = useState('');
 
   // Add form
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newPayRate, setNewPayRate] = useState('');
 
   // Edit form
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editPayRate, setEditPayRate] = useState('');
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -92,11 +95,11 @@ export function WorkersPage() {
   const getWorkerAssignments = (workerId: string) =>
     assignments.filter(a => a.worker_id === workerId);
 
+  const getWorkerEarnings = (workerId: string) =>
+    getWorkerAssignments(workerId).reduce((sum, a) => sum + (Number(a.pay_amount) || 0), 0);
+
   const getWorkerEventCount = (workerId: string) =>
     getWorkerAssignments(workerId).length;
-
-  const getWorkerEarnings = (workerId: string) =>
-    getWorkerEventCount(workerId) * PAY_PER_EVENT;
 
   const totalPayOwed = workers.reduce((sum, w) => sum + getWorkerEarnings(w.id), 0);
 
@@ -117,11 +120,17 @@ export function WorkersPage() {
     setSaving(true);
     const { data, error } = await supabase
       .from('workers')
-      .insert({ name: newName, role: newRole, phone: newPhone, status: 'active' })
+      .insert({
+        name: newName,
+        role: newRole,
+        phone: newPhone,
+        status: 'active',
+        default_pay_rate: Number(newPayRate) || 0,
+      })
       .select().single();
     if (!error && data) {
       setWorkers(prev => [...prev, data]);
-      setNewName(''); setNewRole(''); setNewPhone('');
+      setNewName(''); setNewRole(''); setNewPhone(''); setNewPayRate('');
       setShowAddForm(false);
     }
     setSaving(false);
@@ -132,11 +141,18 @@ export function WorkersPage() {
     setSaving(true);
     const { error } = await supabase
       .from('workers')
-      .update({ name: editName, role: editRole, phone: editPhone })
+      .update({
+        name: editName,
+        role: editRole,
+        phone: editPhone,
+        default_pay_rate: Number(editPayRate) || 0,
+      })
       .eq('id', editingWorker.id);
     if (!error) {
       setWorkers(prev => prev.map(w =>
-        w.id === editingWorker.id ? { ...w, name: editName, role: editRole, phone: editPhone } : w
+        w.id === editingWorker.id
+          ? { ...w, name: editName, role: editRole, phone: editPhone, default_pay_rate: Number(editPayRate) || 0 }
+          : w
       ));
       setEditingWorker(null);
     }
@@ -149,8 +165,6 @@ export function WorkersPage() {
     if (!error) setWorkers(prev => prev.map(w => w.id === id ? { ...w, status: newStatus } : w));
   };
 
-  const handleDelete = (id: string) => setConfirmDelete(id);
-
   const confirmDeleteWorker = async () => {
     if (!confirmDelete) return;
     const { error } = await supabase.from('workers').delete().eq('id', confirmDelete);
@@ -160,7 +174,8 @@ export function WorkersPage() {
 
   const assignWorker = async (bookingRef: string, workerId: string) => {
     const booking = bookings.find(b => b.booking_ref === bookingRef);
-    if (!booking) return;
+    const worker = workers.find(w => w.id === workerId);
+    if (!booking || !worker) return;
     const { data, error } = await supabase
       .from('worker_assignments')
       .insert({
@@ -171,6 +186,7 @@ export function WorkersPage() {
         time_slot: booking.event_time,
         location: `${booking.emirate} - ${booking.area}`,
         admin_note: '',
+        pay_amount: worker.default_pay_rate || 0,
       })
       .select().single();
     if (!error && data) {
@@ -199,13 +215,30 @@ export function WorkersPage() {
     }
   };
 
+  const savePay = async (assignmentId: string) => {
+    const amount = Number(payText);
+    if (isNaN(amount) || amount < 0) return;
+    const { error } = await supabase
+      .from('worker_assignments')
+      .update({ pay_amount: amount })
+      .eq('id', assignmentId);
+    if (!error) {
+      setAssignments(prev => prev.map(a =>
+        a.id === assignmentId ? { ...a, pay_amount: amount } : a
+      ));
+      setEditingPay(null);
+      setPayText('');
+    }
+  };
+
   const earningsChartData = workers
     .filter(w => w.status === 'active')
     .map(w => ({
       name: w.name.split(' ')[0],
       earnings: getWorkerEarnings(w.id),
       events: getWorkerEventCount(w.id),
-    }));
+    }))
+    .filter(w => w.events > 0);
 
   const selectedWorkerData = selectedWorker ? workers.find(w => w.id === selectedWorker) : null;
   const selectedWorkerAssignments = selectedWorker ? getWorkerAssignments(selectedWorker) : [];
@@ -276,7 +309,7 @@ export function WorkersPage() {
             <Card className="border-brand-blue/30">
               <CardContent className="p-6">
                 <form onSubmit={handleAdd} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-slate-300 block mb-1">Full Name</label>
                       <input required value={newName} onChange={e => setNewName(e.target.value)}
@@ -297,7 +330,23 @@ export function WorkersPage() {
                         placeholder="+971 50 000 0000"
                         className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
                     </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-300 block mb-1">
+                        Default Pay Rate (AED/event)
+                      </label>
+                      <input
+                        type="number" min="0" value={newPayRate}
+                        onChange={e => setNewPayRate(e.target.value)}
+                        placeholder="e.g. 150"
+                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+                    </div>
                   </div>
+                  {!newPayRate && (
+                    <div className="flex items-center gap-2 text-amber-400 text-sm">
+                      <AlertCircleIcon className="w-4 h-4" />
+                      No pay rate set — worker will be assigned AED 0 per event until updated.
+                    </div>
+                  )}
                   <div className="flex justify-end gap-3">
                     <Button variant="ghost" type="button" onClick={() => setShowAddForm(false)}>Cancel</Button>
                     <Button type="submit" disabled={saving}>{saving ? 'Adding...' : 'Add Worker'}</Button>
@@ -309,12 +358,14 @@ export function WorkersPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {workers.map(worker => (
-              <div
+              <Card
                 key={worker.id}
-                className={`cursor-pointer transition-all hover:border-slate-600 ${selectedWorker === worker.id ? 'border-brand-blue' : ''}`}
-                onClick={() => setSelectedWorker(selectedWorker === worker.id ? null : worker.id)}
+                className={`transition-all hover:border-slate-600 ${selectedWorker === worker.id ? 'border-brand-blue' : ''}`}
               >
-                <Card>
+                <div
+                  className="cursor-pointer"
+                  onClick={() => setSelectedWorker(selectedWorker === worker.id ? null : worker.id)}
+                >
                   <CardContent className="p-5">
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -325,9 +376,19 @@ export function WorkersPage() {
                         {worker.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center text-sm text-slate-400 mb-4">
+                    <div className="flex items-center text-sm text-slate-400 mb-1">
                       <PhoneIcon className="w-4 h-4 mr-2 shrink-0" />
-                      {worker.phone}
+                      {worker.phone || 'No phone'}
+                    </div>
+                    <div className="flex items-center text-sm mb-4">
+                      <DollarSignIcon className="w-4 h-4 mr-2 shrink-0 text-emerald-400" />
+                      {worker.default_pay_rate > 0 ? (
+                        <span className="text-emerald-400 font-medium">AED {worker.default_pay_rate}/event</span>
+                      ) : (
+                        <span className="text-amber-400 flex items-center gap-1">
+                          <AlertCircleIcon className="w-3 h-3" /> Pay rate not set
+                        </span>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-4">
                       <div className="bg-slate-800/50 rounded-lg p-3 text-center">
@@ -335,32 +396,35 @@ export function WorkersPage() {
                         <p className="text-xs text-slate-400">Events</p>
                       </div>
                       <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-                        <p className="text-2xl font-bold text-emerald-400">AED {getWorkerEarnings(worker.id)}</p>
-                        <p className="text-xs text-slate-400">Earned</p>
+                        <p className="text-xl font-bold text-emerald-400">AED {getWorkerEarnings(worker.id)}</p>
+                        <p className="text-xs text-slate-400">Total Earned</p>
                       </div>
                     </div>
-                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                      <Button size="sm" variant="ghost" className="flex-1"
-                        onClick={() => {
-                          setEditingWorker(worker);
-                          setEditName(worker.name);
-                          setEditRole(worker.role);
-                          setEditPhone(worker.phone);
-                        }}>
-                        <EditIcon className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button size="sm" variant="ghost" className="flex-1"
-                        onClick={() => toggleStatus(worker.id, worker.status)}>
-                        {worker.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-rose-400 px-2"
-                        onClick={() => handleDelete(worker.id)}>
-                        <TrashIcon className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
                   </CardContent>
-                </Card>
-              </div>
+                </div>
+                <div className="px-5 pb-5">
+                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" className="flex-1"
+                      onClick={() => {
+                        setEditingWorker(worker);
+                        setEditName(worker.name);
+                        setEditRole(worker.role);
+                        setEditPhone(worker.phone);
+                        setEditPayRate(String(worker.default_pay_rate || ''));
+                      }}>
+                      <EditIcon className="w-3.5 h-3.5 mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" className="flex-1"
+                      onClick={() => toggleStatus(worker.id, worker.status)}>
+                      {worker.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-rose-400 px-2"
+                      onClick={() => setConfirmDelete(worker.id)}>
+                      <TrashIcon className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
             ))}
           </div>
 
@@ -385,37 +449,53 @@ export function WorkersPage() {
                             <p className="font-bold text-slate-100">{a.package_name}</p>
                             <p className="text-sm text-brand-blue">{a.booking_ref}</p>
                           </div>
-                          <div className="text-right text-sm text-slate-400">
-                            <p>{a.booking_date}</p>
-                            <p>{a.time_slot}</p>
+                          <div className="text-right">
+                            <p className="text-sm text-slate-400">{a.booking_date}</p>
+                            {editingPay === a.id ? (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-xs text-slate-400">AED</span>
+                                <input
+                                  type="number" min="0"
+                                  value={payText}
+                                  onChange={e => setPayText(e.target.value)}
+                                  className="w-16 px-2 py-0.5 bg-slate-950 border border-slate-600 rounded text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-blue"
+                                />
+                                <Button size="sm" onClick={() => savePay(a.id)}>✓</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingPay(null)}>✕</Button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingPay(a.id); setPayText(String(a.pay_amount || 0)); }}
+                                className="text-emerald-400 font-bold text-sm hover:text-emerald-300 transition-colors"
+                              >
+                                AED {a.pay_amount || 0} ✎
+                              </button>
+                            )}
                           </div>
                         </div>
                         <p className="text-xs text-slate-500 mb-2">{a.location}</p>
-                        <div className="flex items-center justify-between">
-                          {editingNote?.assignmentId === a.id ? (
-                            <div className="flex-1 flex gap-2">
-                              <input value={noteText} onChange={e => setNoteText(e.target.value)}
-                                placeholder="Add note..."
-                                className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+
+                        {editingNote?.assignmentId === a.id ? (
+                          <div className="mt-2">
+                            <textarea
+                              value={noteText}
+                              onChange={e => setNoteText(e.target.value)}
+                              rows={3}
+                              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-blue"
+                            />
+                            <div className="flex justify-end gap-2 mt-2">
                               <Button size="sm" onClick={saveNote}>Save</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)}>Cancel</Button>
+                              <Button size="sm" variant="ghost" onClick={() => { setEditingNote(null); setNoteText(''); }}>Cancel</Button>
                             </div>
-                          ) : (
-                            <>
-                              <p className="text-xs text-slate-400 italic flex-1">
-                                {a.admin_note || 'No note added'}
-                              </p>
-                              <Button size="sm" variant="ghost"
-                                onClick={() => {
-                                  setEditingNote({ assignmentId: a.id, workerId: selectedWorker! });
-                                  setNoteText(a.admin_note || '');
-                                }}>
-                                <EditIcon className="w-3 h-3 mr-1" />
-                                {a.admin_note ? 'Edit' : 'Add Note'}
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-slate-400 italic">{a.admin_note || 'No note'}</p>
+                            <Button size="sm" variant="ghost" onClick={() => { setEditingNote({ assignmentId: a.id, workerId: a.worker_id }); setNoteText(a.admin_note || ''); }}>
+                              Edit
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -460,7 +540,6 @@ export function WorkersPage() {
                       </div>
                     </div>
 
-                    {/* Assigned Workers */}
                     <div className="space-y-2 mb-3">
                       {bookingAssignments.length > 0 ? (
                         bookingAssignments.map(a => {
@@ -472,24 +551,25 @@ export function WorkersPage() {
                                 <span className="text-xs text-slate-400 ml-2">{worker?.role}</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                {editingNote?.assignmentId === a.id ? (
-                                  <div className="flex gap-2">
-                                    <input value={noteText} onChange={e => setNoteText(e.target.value)}
-                                      className="px-3 py-1 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue w-48" />
-                                    <Button size="sm" onClick={saveNote}>Save</Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)}>Cancel</Button>
+                                {editingPay === a.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-slate-400">AED</span>
+                                    <input
+                                      type="number" min="0"
+                                      value={payText}
+                                      onChange={e => setPayText(e.target.value)}
+                                      className="w-16 px-2 py-0.5 bg-slate-950 border border-slate-600 rounded text-sm text-slate-200 focus:outline-none"
+                                    />
+                                    <Button size="sm" onClick={() => savePay(a.id)}>✓</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingPay(null)}>✕</Button>
                                   </div>
                                 ) : (
-                                  <>
-                                    {a.admin_note && <span className="text-xs text-slate-400 italic">"{a.admin_note}"</span>}
-                                    <Button size="sm" variant="ghost"
-                                      onClick={() => {
-                                        setEditingNote({ assignmentId: a.id, workerId: a.worker_id });
-                                        setNoteText(a.admin_note || '');
-                                      }}>
-                                      <EditIcon className="w-3 h-3" />
-                                    </Button>
-                                  </>
+                                  <button
+                                    onClick={() => { setEditingPay(a.id); setPayText(String(a.pay_amount || 0)); }}
+                                    className="text-emerald-400 text-sm font-medium hover:text-emerald-300"
+                                  >
+                                    AED {a.pay_amount || 0} ✎
+                                  </button>
                                 )}
                                 <button onClick={() => removeAssignment(a.id)} className="text-rose-400 hover:text-rose-300">
                                   <XIcon className="w-4 h-4" />
@@ -503,7 +583,6 @@ export function WorkersPage() {
                       )}
                     </div>
 
-                    {/* Assign Worker */}
                     {assigningTo === booking.booking_ref ? (
                       <div className="bg-slate-800/30 rounded-xl p-4">
                         <p className="text-sm font-medium text-slate-300 mb-3">Select worker:</p>
@@ -521,7 +600,12 @@ export function WorkersPage() {
                                     <p className="font-medium text-slate-200 text-sm">{worker.name}</p>
                                     <p className="text-xs text-slate-400">{worker.role}</p>
                                   </div>
-                                  {conflict && <Badge variant="danger">Conflict</Badge>}
+                                  <div className="text-right">
+                                    {conflict
+                                      ? <Badge variant="danger">Conflict</Badge>
+                                      : <span className="text-xs text-emerald-400">AED {worker.default_pay_rate || 0}</span>
+                                    }
+                                  </div>
                                 </button>
                               );
                             })}
@@ -548,30 +632,31 @@ export function WorkersPage() {
             <h3 className="text-lg font-bold text-slate-100">Worker Earnings</h3>
             <select value={earningsPeriod} onChange={e => setEarningsPeriod(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue">
-              <option value="week">This Week</option>
+              <option value="all">All Time</option>
               <option value="month">This Month</option>
               <option value="year">This Year</option>
-              <option value="all">All Time</option>
             </select>
           </div>
 
-          <Card>
-            <CardHeader><CardTitle>Earnings by Worker (AED)</CardTitle></CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={earningsChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    <XAxis dataKey="name" stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => `AED ${v}`} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
-                      formatter={(value: number) => [`AED ${value}`, 'Earnings']} />
-                    <Bar dataKey="earnings" fill="#ec4899" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          {earningsChartData.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Earnings by Worker (AED)</CardTitle></CardHeader>
+              <CardContent>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={earningsChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                      <XAxis dataKey="name" stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => `AED ${v}`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
+                        formatter={(value: number) => [`AED ${value}`, 'Earnings']} />
+                      <Bar dataKey="earnings" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-0">
@@ -581,8 +666,8 @@ export function WorkersPage() {
                     <TableHead>Worker</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Default Rate</TableHead>
                     <TableHead>Events</TableHead>
-                    <TableHead>Rate/Event</TableHead>
                     <TableHead>Total Earned</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -594,8 +679,13 @@ export function WorkersPage() {
                       <TableCell>
                         <Badge variant={worker.status === 'active' ? 'success' : 'danger'}>{worker.status}</Badge>
                       </TableCell>
+                      <TableCell>
+                        {worker.default_pay_rate > 0
+                          ? <span className="text-emerald-400">AED {worker.default_pay_rate}</span>
+                          : <span className="text-amber-400 flex items-center gap-1"><AlertCircleIcon className="w-3 h-3" />Not set</span>
+                        }
+                      </TableCell>
                       <TableCell>{getWorkerEventCount(worker.id)}</TableCell>
-                      <TableCell>AED {PAY_PER_EVENT}</TableCell>
                       <TableCell className="font-bold text-emerald-400">AED {getWorkerEarnings(worker.id)}</TableCell>
                     </TableRow>
                   ))}
@@ -610,7 +700,6 @@ export function WorkersPage() {
         </div>
       )}
 
-      {/* Edit Worker Modal */}
       {editingWorker && (
         <EditModal title="Edit Worker" onClose={() => setEditingWorker(null)}>
           <div className="space-y-4">
@@ -631,6 +720,21 @@ export function WorkersPage() {
               <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
             </div>
+            <div>
+              <label className="text-sm font-medium text-slate-300 block mb-1">
+                Default Pay Rate (AED/event)
+              </label>
+              <input
+                type="number" min="0"
+                value={editPayRate}
+                onChange={e => setEditPayRate(e.target.value)}
+                placeholder="e.g. 150"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Changing this only affects future assignments. Past event payments are unchanged.
+              </p>
+            </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="ghost" onClick={() => setEditingWorker(null)}>Cancel</Button>
               <Button onClick={handleSaveEdit} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
@@ -642,7 +746,7 @@ export function WorkersPage() {
       {confirmDelete && (
         <ConfirmModal
           title="Delete Worker"
-          message="Are you sure you want to delete this worker?"
+          message="Are you sure you want to delete this worker? All their assignment history will also be deleted."
           confirmLabel="Delete"
           onConfirm={confirmDeleteWorker}
           onCancel={() => setConfirmDelete(null)}

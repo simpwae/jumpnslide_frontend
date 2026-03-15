@@ -97,10 +97,27 @@ export function TestimonialsPage() {
     setSaving(false);
   };
 
-  const toggleFeatured = async (id: string, current: boolean) => {
-    const { error } = await supabase.from('testimonials').update({ is_featured: !current }).eq('id', id);
-    if (!error) setTestimonials(prev => prev.map(t => t.id === id ? { ...t, is_featured: !current } : t));
-  };
+ const toggleFeatured = async (id: string, current: boolean) => {
+  // Add this check
+  if (!current) {
+    const featuredCount = testimonials.filter(t => t.is_featured).length;
+    if (featuredCount >= 6) {
+      alert('Maximum 6 featured testimonials allowed. Please unfeature one first.');
+      return;
+    }
+  }
+
+  const { error } = await supabase
+    .from('testimonials')
+    .update({ is_featured: !current })
+    .eq('id', id);
+
+  if (!error) {
+    setTestimonials(prev => prev.map(t =>
+      t.id === id ? { ...t, is_featured: !current } : t
+    ));
+  }
+};
 
   const handleDelete = (id: string) => setConfirmDelete(id);
 

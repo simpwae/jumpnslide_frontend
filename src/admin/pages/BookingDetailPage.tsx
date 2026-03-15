@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeftIcon, MessageCircleIcon, CheckCircleIcon,
   XCircleIcon, FileTextIcon, UserIcon, CalendarIcon,
-  PackageIcon, LandmarkIcon, TrashIcon, Loader2Icon
+  PackageIcon, LandmarkIcon, TrashIcon, Loader2Icon,
+  EditIcon, SaveIcon, AlertTriangleIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -16,6 +17,13 @@ const EMAILJS_SERVICE_ID = 'service_wdhb3u5';
 const EMAILJS_CONFIRMED_TEMPLATE = 'template_ydqjnp5';
 const EMAILJS_PUBLIC_KEY = 'hF4zI9NwINt2gOzUa';
 
+const TIME_SLOTS = [
+  'Morning (8:00 AM - 12:00 PM)',
+  'Afternoon (12:00 PM - 4:00 PM)',
+  'Evening (4:00 PM - 8:00 PM)',
+  'Custom',
+];
+
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const isMounted = useRef(true);
@@ -27,9 +35,19 @@ export function BookingDetailPage() {
   const [noteSaved, setNoteSaved] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+  const [showUndoModal, setShowUndoModal] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
+  const [actionType, setActionType] = useState<'success' | 'warning'>('success');
+
+  // Date/Time edit
+  const [editingDateTime, setEditingDateTime] = useState(false);
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [isSavingDateTime, setIsSavingDateTime] = useState(false);
 
   useEffect(() => {
     return () => { isMounted.current = false; };
@@ -52,6 +70,8 @@ export function BookingDetailPage() {
     } else {
       setBooking(data);
       setNotes(data.admin_notes || '');
+      setEditDate(data.event_date || '');
+      setEditTime(data.event_time || '');
     }
     setLoading(false);
   };
@@ -59,9 +79,19 @@ export function BookingDetailPage() {
   const handleConfirm = async () => {
     setIsConfirming(true);
     try {
+      const remainingBalance = (booking.total_amount || 0) - (booking.advance_amount || 0);
+
+      // Auto complete if no remaining balance
+      const newStatus = remainingBalance <= 0 ? 'Completed' : 'Confirmed';
+      const updates: any = { status: newStatus };
+      if (remainingBalance <= 0) {
+        updates.remaining_paid = true;
+        updates.remaining_paid_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'Confirmed' })
+        .update(updates)
         .eq('booking_ref', id);
 
       if (error) throw error;
@@ -82,7 +112,7 @@ export function BookingDetailPage() {
             address: booking.address,
             total_amount: booking.total_amount,
             advance_amount: booking.advance_amount,
-            remaining_balance: booking.total_amount - booking.advance_amount,
+            remaining_balance: remainingBalance,
           },
           EMAILJS_PUBLIC_KEY
         );
@@ -90,12 +120,17 @@ export function BookingDetailPage() {
         console.error('Email failed:', emailError);
       }
 
-      setBooking({ ...booking, status: 'Confirmed' });
-      setActionMessage('Booking confirmed! Customer has been notified.');
-
+      setBooking({ ...booking, status: newStatus, ...updates });
+      setActionType('success');
+      setActionMessage(
+        remainingBalance <= 0
+          ? 'Booking confirmed and completed! No remaining balance. Customer notified.'
+          : 'Booking confirmed! Customer has been notified by email.'
+      );
     } catch (error) {
       console.error('Error confirming:', error);
       setActionMessage('Failed to confirm. Please try again.');
+      setActionType('warning');
     } finally {
       if (isMounted.current) setIsConfirming(false);
     }
@@ -112,12 +147,96 @@ export function BookingDetailPage() {
 
       if (error) throw error;
       setBooking({ ...booking, status: 'Cancelled' });
+      setActionType('warning');
       setActionMessage('Payment rejected. Please contact customer via WhatsApp.');
-
     } catch (error) {
       console.error('Error rejecting:', error);
     } finally {
       if (isMounted.current) setIsRejecting(false);
+    }
+  };
+
+  const handleMarkRemainingPaid = async () => {
+    setShowMarkPaidModal(false);
+    setIsMarkingPaid(true);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          remaining_paid: true,
+          remaining_paid_at: now,
+          status: 'Completed',
+        })
+        .eq('booking_ref', id);
+
+      if (error) throw error;
+      setBooking({
+        ...booking,
+        remaining_paid: true,
+        remaining_paid_at: now,
+        status: 'Completed',
+      });
+      setActionType('success');
+      setActionMessage('Remaining balance marked as received. Booking is now Completed!');
+    } catch (error) {
+      console.error('Error marking paid:', error);
+    } finally {
+      if (isMounted.current) setIsMarkingPaid(false);
+    }
+  };
+
+  const handleUndoRemaining = async () => {
+    setShowUndoModal(false);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          remaining_paid: false,
+          remaining_paid_at: null,
+          status: 'Confirmed',
+        })
+        .eq('booking_ref', id);
+
+      if (error) throw error;
+      setBooking({
+        ...booking,
+        remaining_paid: false,
+        remaining_paid_at: null,
+        status: 'Confirmed',
+      });
+      setActionType('warning');
+      setActionMessage('Remaining payment undone. Booking reverted to Confirmed.');
+    } catch (error) {
+      console.error('Error undoing:', error);
+    }
+  };
+
+  const handleSaveDateTime = async () => {
+    if (!editDate || !editTime) return;
+    setIsSavingDateTime(true);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ event_date: editDate, event_time: editTime })
+        .eq('booking_ref', id);
+
+      if (error) throw error;
+
+      // Also update worker assignments booking_date
+      await supabase
+        .from('worker_assignments')
+        .update({ booking_date: editDate, time_slot: editTime })
+        .eq('booking_ref', id);
+
+      setBooking({ ...booking, event_date: editDate, event_time: editTime });
+      setEditingDateTime(false);
+      setActionType('warning');
+      setActionMessage('Date/time updated. ⚠️ Remember to notify the customer via WhatsApp!');
+    } catch (error) {
+      console.error('Error saving date:', error);
+    } finally {
+      if (isMounted.current) setIsSavingDateTime(false);
     }
   };
 
@@ -131,7 +250,6 @@ export function BookingDetailPage() {
 
       if (error) throw error;
       window.location.href = '/admin/bookings';
-
     } catch (error) {
       console.error('Error deleting:', error);
     }
@@ -190,7 +308,9 @@ export function BookingDetailPage() {
     );
   }
 
-  const remainingBalance = booking.total_amount - booking.advance_amount;
+  const remainingBalance = (booking.total_amount || 0) - (booking.advance_amount || 0);
+  const isCompleted = booking.status === 'Completed';
+  const isCancelled = booking.status === 'Cancelled';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -207,6 +327,11 @@ export function BookingDetailPage() {
           <div className="flex items-center space-x-3">
             <h2 className="text-2xl font-heading font-bold text-slate-100">{booking.booking_ref}</h2>
             {getStatusBadge(booking.status)}
+            {booking.remaining_paid && (
+              <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full">
+                Fully Paid
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-400 mt-1">
             Created on {new Date(booking.created_at).toLocaleString('en-AE', { timeZone: 'Asia/Dubai' })}
@@ -216,7 +341,12 @@ export function BookingDetailPage() {
 
       {/* Action Message */}
       {actionMessage && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-xl text-sm font-medium">
+        <div className={`px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
+          actionType === 'success'
+            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+            : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+        }`}>
+          {actionType === 'warning' && <AlertTriangleIcon className="w-4 h-4 shrink-0" />}
           {actionMessage}
         </div>
       )}
@@ -272,27 +402,80 @@ export function BookingDetailPage() {
 
           {/* Event Details */}
           <Card>
-            <CardHeader className="flex flex-row items-center space-x-2 pb-4">
-              <CalendarIcon className="w-5 h-5 text-brand-pink" />
-              <CardTitle>Event Details</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="w-5 h-5 text-brand-pink" />
+                <CardTitle>Event Details</CardTitle>
+              </div>
+              {!editingDateTime && (
+                <Button
+                  variant="ghost" size="sm"
+                  onClick={() => setEditingDateTime(true)}
+                >
+                  <EditIcon className="w-4 h-4 mr-1" /> Edit Date/Time
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                  <p className="text-sm text-slate-400 mb-1">Event Date</p>
-                  <p className="font-medium text-slate-200">{booking.event_date}</p>
+              {editingDateTime ? (
+                <div className="space-y-4">
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-sm text-amber-400 flex items-start gap-2">
+                    <AlertTriangleIcon className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p>Please check the calendar for conflicts before changing the date. After saving, notify the customer via WhatsApp.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1">Event Date</label>
+                      <input
+                        type="date"
+                        value={editDate}
+                        onChange={e => setEditDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1">Event Time</label>
+                      <input
+                        type="text"
+                        value={editTime}
+                        onChange={e => setEditTime(e.target.value)}
+                        placeholder="e.g. 4:00 PM to 8:00 PM"
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button onClick={handleSaveDateTime} disabled={isSavingDateTime}>
+                      <SaveIcon className="w-4 h-4 mr-2" />
+                      {isSavingDateTime ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => {
+                      setEditingDateTime(false);
+                      setEditDate(booking.event_date || '');
+                      setEditTime(booking.event_time || '');
+                    }}>
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-slate-400 mb-1">Event Time</p>
-                  <p className="font-medium text-slate-200">{booking.event_time}</p>
-                </div>
-              </div>
-              {booking.special_requests && (
-                <div>
-                  <p className="text-sm text-slate-400 mb-1">Special Requests</p>
-                  <p className="font-medium text-slate-200 bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    {booking.special_requests}
-                  </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Event Date</p>
+                    <p className="font-medium text-slate-200">{booking.event_date}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Event Time</p>
+                    <p className="font-medium text-slate-200">{booking.event_time}</p>
+                  </div>
+                  {booking.special_requests && (
+                    <div className="md:col-span-2">
+                      <p className="text-sm text-slate-400 mb-1">Special Requests</p>
+                      <p className="font-medium text-slate-200 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                        {booking.special_requests}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -321,6 +504,7 @@ export function BookingDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
 
+              {/* Confirm/Reject — only for Payment Uploaded */}
               {booking.status === 'Payment Uploaded' && (
                 <>
                   <Button
@@ -328,12 +512,10 @@ export function BookingDetailPage() {
                     onClick={handleConfirm}
                     disabled={isConfirming}
                   >
-                    {isConfirming ? (
-                      <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <CheckCircleIcon className="w-4 h-4 mr-2" />
-                    )}
-                    {isConfirming ? 'Confirming...' : 'Confirm Booking'}
+                    {isConfirming
+                      ? <><Loader2Icon className="w-4 h-4 mr-2 animate-spin" />Confirming...</>
+                      : <><CheckCircleIcon className="w-4 h-4 mr-2" />Confirm Booking</>
+                    }
                   </Button>
                   <Button
                     variant="danger"
@@ -347,6 +529,43 @@ export function BookingDetailPage() {
                 </>
               )}
 
+              {/* Mark Remaining Paid — only for Confirmed with remaining balance */}
+              {booking.status === 'Confirmed' && remainingBalance > 0 && !booking.remaining_paid && (
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => setShowMarkPaidModal(true)}
+                  disabled={isMarkingPaid}
+                >
+                  {isMarkingPaid
+                    ? <><Loader2Icon className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                    : <><CheckCircleIcon className="w-4 h-4 mr-2" />Mark Remaining Paid (AED {remainingBalance})</>
+                  }
+                </Button>
+              )}
+
+              {/* Undo Completed — only for Completed */}
+              {isCompleted && booking.remaining_paid && (
+                <div className="space-y-2">
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-center">
+                    <CheckCircleIcon className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                    <p className="text-blue-400 text-sm font-medium">Booking Completed ✓</p>
+                    {booking.remaining_paid_at && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Paid: {new Date(booking.remaining_paid_at).toLocaleString('en-AE', { timeZone: 'Asia/Dubai' })}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-slate-400 text-xs"
+                    onClick={() => setShowUndoModal(true)}
+                  >
+                    Undo — Revert to Confirmed
+                  </Button>
+                </div>
+              )}
+
+              {/* Confirmed status */}
               {booking.status === 'Confirmed' && (
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
                   <CheckCircleIcon className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
@@ -354,13 +573,15 @@ export function BookingDetailPage() {
                 </div>
               )}
 
-              {booking.status === 'Cancelled' && (
+              {/* Cancelled status */}
+              {isCancelled && (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 text-center">
                   <XCircleIcon className="w-5 h-5 text-rose-400 mx-auto mb-1" />
                   <p className="text-rose-400 text-sm font-medium">Payment Rejected</p>
                 </div>
               )}
 
+              {/* WhatsApp — always visible */}
               <Button
                 variant="outline"
                 className="w-full"
@@ -370,6 +591,7 @@ export function BookingDetailPage() {
                 WhatsApp Customer
               </Button>
 
+              {/* Delete — always visible with stronger warning for Completed */}
               <Button
                 variant="ghost"
                 className="w-full text-rose-400 hover:text-rose-300 hover:bg-rose-400/10"
@@ -437,10 +659,22 @@ export function BookingDetailPage() {
                   <span>Advance Paid (50%)</span>
                   <span>AED {booking.advance_amount}</span>
                 </div>
-                <div className="flex justify-between text-amber-400 font-medium bg-amber-500/10 p-2 rounded">
+                <div className={`flex justify-between font-medium p-2 rounded ${
+                  booking.remaining_paid
+                    ? 'text-blue-400 bg-blue-500/10'
+                    : 'text-amber-400 bg-amber-500/10'
+                }`}>
                   <span>Remaining Balance</span>
-                  <span>AED {remainingBalance}</span>
+                  <span className="flex items-center gap-2">
+                    AED {remainingBalance}
+                    {booking.remaining_paid && <CheckCircleIcon className="w-4 h-4" />}
+                  </span>
                 </div>
+                {booking.remaining_paid && booking.remaining_paid_at && (
+                  <p className="text-xs text-slate-500 text-right">
+                    Received: {new Date(booking.remaining_paid_at).toLocaleString('en-AE', { timeZone: 'Asia/Dubai' })}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -467,9 +701,7 @@ export function BookingDetailPage() {
                 {isSavingNotes ? 'Saving...' : 'Save Notes'}
               </Button>
               {noteSaved && (
-                <p className="text-emerald-400 text-sm text-center mt-2 font-medium">
-                  Notes saved ✓
-                </p>
+                <p className="text-emerald-400 text-sm text-center mt-2 font-medium">Notes saved ✓</p>
               )}
             </CardContent>
           </Card>
@@ -481,7 +713,7 @@ export function BookingDetailPage() {
       {showRejectModal && (
         <ConfirmModal
           title="Reject Payment"
-          message="Are you sure you want to reject this payment? The booking status will be set to Cancelled."
+          message="Are you sure you want to reject this payment? Status will be set to Cancelled."
           confirmLabel="Reject"
           variant="danger"
           onConfirm={handleReject}
@@ -492,11 +724,37 @@ export function BookingDetailPage() {
       {showDeleteModal && (
         <ConfirmModal
           title="Delete Booking"
-          message="Are you sure you want to permanently delete this booking? This cannot be undone."
+          message={
+            isCompleted
+              ? "⚠️ This booking is Completed. Deleting it will affect revenue calculations. This cannot be undone."
+              : "Are you sure you want to permanently delete this booking? This cannot be undone."
+          }
           confirmLabel="Delete"
           variant="danger"
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+
+      {showMarkPaidModal && (
+        <ConfirmModal
+          title="Mark Remaining Balance as Received"
+          message={`Confirm you have received the remaining balance of AED ${remainingBalance} from ${booking.customer_name}. This will mark the booking as Completed.`}
+          confirmLabel="Yes, Mark as Paid"
+          variant="primary"
+          onConfirm={handleMarkRemainingPaid}
+          onCancel={() => setShowMarkPaidModal(false)}
+        />
+      )}
+
+      {showUndoModal && (
+        <ConfirmModal
+          title="Undo Remaining Payment"
+          message="This will revert the booking back to Confirmed status. Use this only if the payment was marked by mistake."
+          confirmLabel="Undo"
+          variant="danger"
+          onConfirm={handleUndoRemaining}
+          onCancel={() => setShowUndoModal(false)}
         />
       )}
 

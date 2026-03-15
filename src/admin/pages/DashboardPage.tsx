@@ -41,17 +41,21 @@ export function DashboardPage() {
   const todayBookings = bookings.filter(b => b.event_date === today).length;
   const pendingBookings = bookings.filter(b => b.status === 'Pending Payment' || b.status === 'Payment Uploaded').length;
   const confirmedBookings = bookings.filter(b => b.status === 'Confirmed').length;
-  const totalRevenue = bookings
-    .filter(b => b.status === 'Confirmed' || b.status === 'Completed')
-    .reduce((sum, b) => sum + Number(b.advance_amount), 0);
+  const advanceCollected = bookings
+  .filter(b => ['Confirmed', 'Completed'].includes(b.status))
+  .reduce((sum, b) => sum + Number(b.advance_amount), 0);
+
+const fullRevenue = bookings
+  .filter(b => b.status === 'Completed')
+  .reduce((sum, b) => sum + Number(b.total_amount), 0);
 
   const stats = [
     { title: 'Total Bookings', value: totalBookings, icon: ShoppingCartIcon, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { title: "Today's Events", value: todayBookings, icon: CalendarIcon, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
     { title: 'Pending', value: pendingBookings, icon: ClockIcon, color: 'text-amber-400', bg: 'bg-amber-400/10' },
     { title: 'Confirmed', value: confirmedBookings, icon: CheckCircleIcon, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-    { title: 'Total Revenue', value: `AED ${totalRevenue.toLocaleString()}`, icon: DollarSignIcon, color: 'text-purple-400', bg: 'bg-purple-400/10' },
-    { title: 'Advance Collected', value: `AED ${totalRevenue.toLocaleString()}`, icon: TrendingUpIcon, color: 'text-brand-pink', bg: 'bg-brand-pink/10' },
+    { title: 'Advance Collected', value: `AED ${advanceCollected.toLocaleString()}`, icon: DollarSignIcon, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+    { title: 'Full Revenue', value: `AED ${fullRevenue.toLocaleString()}`, icon: TrendingUpIcon, color: 'text-brand-pink', bg: 'bg-brand-pink/10' },
   ];
 
   // Monthly chart data
