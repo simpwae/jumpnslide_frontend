@@ -1,169 +1,202 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PlusIcon, EditIcon, TrashIcon, UsersIcon,
   UserCheckIcon, UserXIcon, CalendarIcon,
-  PhoneIcon, XIcon, ChevronRightIcon,
-  DollarSignIcon, ClockIcon
+  PhoneIcon, XIcon, DollarSignIcon, Loader2Icon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { EditModal } from '../components/ui/EditModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { supabase } from '../../lib/supabase';
 
-const PAY_PER_EVENT = 150; // AED — confirm with admin
+const PAY_PER_EVENT = 150;
+
+const ROLES = [
+  'Setup Technician', 'Machine Operator', 'Delivery Driver',
+  'Face Painter', 'Supervisor', 'General Helper'
+];
+
+interface Worker {
+  id: string;
+  name: string;
+  role: string;
+  phone: string;
+  status: string;
+  created_at: string;
+}
 
 interface Assignment {
   id: string;
-  bookingRef: string;
-  customerName: string;
-  package: string;
-  date: string;
-  timeSlot: string;
+  booking_ref: string;
+  worker_id: string;
+  admin_note: string;
+  booking_date: string;
+  package_name: string;
+  time_slot: string;
   location: string;
-  workerIds: string[];
-  adminNotes: Record<string, string>;
+  created_at: string;
 }
-
-const MOCK_WORKERS = [
-  { id: '1', name: 'Ahmad Hassan', role: 'Setup Technician', phone: '+971 50 123 4567', status: 'active' },
-  { id: '2', name: 'Omar Khalil', role: 'Machine Operator', phone: '+971 55 234 5678', status: 'active' },
-  { id: '3', name: 'Yusuf Ali', role: 'Delivery Driver', phone: '+971 52 345 6789', status: 'active' },
-  { id: '4', name: 'Mariam Noor', role: 'Face Painter', phone: '+971 56 456 7890', status: 'inactive' },
-  { id: '5', name: 'Hassan Raza', role: 'Setup Technician', phone: '+971 50 567 8901', status: 'active' },
-];
-
-const MOCK_ASSIGNMENTS = [
-  { id: 'a1', bookingRef: 'JNS-20260315-001', customerName: 'Sarah Ahmed', package: 'Ultimate Party', date: '2026-03-15', timeSlot: 'Evening (4PM-8PM)', location: 'Dubai - Jumeirah 3', workerIds: ['1', '2'], adminNotes: { '1': 'Great setup, arrived early.', '2': '' } },
-  { id: 'a2', bookingRef: 'JNS-20260315-002', customerName: 'Mohammed R.', package: 'Splash Zone', date: '2026-03-15', timeSlot: 'Morning (8AM-12PM)', location: 'Sharjah - Al Nahda', workerIds: ['3', '1'], adminNotes: { '3': '', '1': '' } },
-  { id: 'a3', bookingRef: 'JNS-20260316-001', customerName: 'Fatima Al Suwaidi', package: 'Party Starter', date: '2026-03-16', timeSlot: 'Afternoon (12PM-4PM)', location: 'Abu Dhabi - Khalidiyah', workerIds: ['2', '5'], adminNotes: { '2': 'Customer very happy.', '5': '' } },
-  { id: 'a4', bookingRef: 'JNS-20260320-001', customerName: 'David C.', package: 'Snack Fiesta', date: '2026-03-20', timeSlot: 'Evening (4PM-8PM)', location: 'RAK - Al Hamra', workerIds: [], adminNotes: {} },
-  { id: 'a5', bookingRef: 'JNS-20260322-001', customerName: 'Aisha K.', package: 'Birthday Bash', date: '2026-03-22', timeSlot: 'Afternoon (12PM-4PM)', location: 'Ajman - Al Rashidiya', workerIds: [], adminNotes: {} },
-];
-
-const ROLES = ['Setup Technician', 'Machine Operator', 'Delivery Driver', 'Face Painter', 'Supervisor', 'General Helper'];
 
 export function WorkersPage() {
   const [activeTab, setActiveTab] = useState('workers');
-  const [workers, setWorkers] = useState(MOCK_WORKERS);
-  const [assignments, setAssignments] = useState<Assignment[]>(MOCK_ASSIGNMENTS);
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [earningsPeriod, setEarningsPeriod] = useState('month');
   const [assigningTo, setAssigningTo] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<{ assignmentId: string; workerId: string } | null>(null);
   const [noteText, setNoteText] = useState('');
 
-  // Add form state
+  // Add form
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
-  // Edit form state
+  // Edit form
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editPhone, setEditPhone] = useState('');
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    const [workersRes, assignmentsRes, bookingsRes] = await Promise.all([
+      supabase.from('workers').select('*').order('created_at', { ascending: true }),
+      supabase.from('worker_assignments').select('*').order('created_at', { ascending: false }),
+      supabase.from('bookings').select('*').in('status', ['Confirmed', 'Payment Uploaded', 'Pending Payment']).order('event_date', { ascending: true }),
+    ]);
+    if (workersRes.data) setWorkers(workersRes.data);
+    if (assignmentsRes.data) setAssignments(assignmentsRes.data);
+    if (bookingsRes.data) setBookings(bookingsRes.data);
+    setLoading(false);
+  };
 
   // Stats
   const totalWorkers = workers.length;
   const activeWorkers = workers.filter(w => w.status === 'active').length;
   const inactiveWorkers = totalWorkers - activeWorkers;
-  const totalAssignments = assignments.reduce((sum, a) => sum + a.workerIds.length, 0);
+
+  const getWorkerAssignments = (workerId: string) =>
+    assignments.filter(a => a.worker_id === workerId);
 
   const getWorkerEventCount = (workerId: string) =>
-    assignments.filter(a => a.workerIds.includes(workerId)).length;
+    getWorkerAssignments(workerId).length;
 
   const getWorkerEarnings = (workerId: string) =>
     getWorkerEventCount(workerId) * PAY_PER_EVENT;
 
   const totalPayOwed = workers.reduce((sum, w) => sum + getWorkerEarnings(w.id), 0);
 
-  const getWorkerAssignments = (workerId: string) =>
-    assignments.filter(a => a.workerIds.includes(workerId));
-
-  // Check if worker has conflict on same date+timeSlot
-  const hasConflict = (workerId: string, assignmentId: string) => {
-    const target = assignments.find(a => a.id === assignmentId);
+  const hasConflict = (workerId: string, bookingRef: string) => {
+    const target = bookings.find(b => b.booking_ref === bookingRef);
     if (!target) return false;
     return assignments.some(a =>
-      a.id !== assignmentId &&
-      a.date === target.date &&
-      a.timeSlot === target.timeSlot &&
-      a.workerIds.includes(workerId)
+      a.worker_id === workerId &&
+      a.booking_ref !== bookingRef &&
+      a.booking_date === target.event_date &&
+      a.time_slot === target.event_time
     );
   };
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newRole.trim()) return;
-    setWorkers(prev => [...prev, {
-      id: `w-${Date.now()}`,
-      name: newName,
-      role: newRole,
-      phone: newPhone,
-      status: 'active'
-    }]);
-    setNewName(''); setNewRole(''); setNewPhone('');
-    setShowAddForm(false);
+    setSaving(true);
+    const { data, error } = await supabase
+      .from('workers')
+      .insert({ name: newName, role: newRole, phone: newPhone, status: 'active' })
+      .select().single();
+    if (!error && data) {
+      setWorkers(prev => [...prev, data]);
+      setNewName(''); setNewRole(''); setNewPhone('');
+      setShowAddForm(false);
+    }
+    setSaving(false);
   };
 
-  const startEdit = (worker: typeof MOCK_WORKERS[0]) => {
-    setEditingId(worker.id);
-    setEditName(worker.name);
-    setEditRole(worker.role);
-    setEditPhone(worker.phone);
+  const handleSaveEdit = async () => {
+    if (!editingWorker) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('workers')
+      .update({ name: editName, role: editRole, phone: editPhone })
+      .eq('id', editingWorker.id);
+    if (!error) {
+      setWorkers(prev => prev.map(w =>
+        w.id === editingWorker.id ? { ...w, name: editName, role: editRole, phone: editPhone } : w
+      ));
+      setEditingWorker(null);
+    }
+    setSaving(false);
   };
 
-  const handleSaveEdit = (id: string) => {
-    setWorkers(prev => prev.map(w =>
-      w.id === id ? { ...w, name: editName, role: editRole, phone: editPhone } : w
-    ));
-    setEditingId(null);
-  };
-
-  const toggleStatus = (id: string) => {
-    setWorkers(prev => prev.map(w =>
-      w.id === id ? { ...w, status: w.status === 'active' ? 'inactive' : 'active' } : w
-    ));
+  const toggleStatus = async (id: string, current: string) => {
+    const newStatus = current === 'active' ? 'inactive' : 'active';
+    const { error } = await supabase.from('workers').update({ status: newStatus }).eq('id', id);
+    if (!error) setWorkers(prev => prev.map(w => w.id === id ? { ...w, status: newStatus } : w));
   };
 
   const handleDelete = (id: string) => setConfirmDelete(id);
-  const confirmDeleteWorker = () => {
-    if (confirmDelete) {
-      setWorkers(prev => prev.filter(w => w.id !== confirmDelete));
-      setConfirmDelete(null);
+
+  const confirmDeleteWorker = async () => {
+    if (!confirmDelete) return;
+    const { error } = await supabase.from('workers').delete().eq('id', confirmDelete);
+    if (!error) setWorkers(prev => prev.filter(w => w.id !== confirmDelete));
+    setConfirmDelete(null);
+  };
+
+  const assignWorker = async (bookingRef: string, workerId: string) => {
+    const booking = bookings.find(b => b.booking_ref === bookingRef);
+    if (!booking) return;
+    const { data, error } = await supabase
+      .from('worker_assignments')
+      .insert({
+        booking_ref: bookingRef,
+        worker_id: workerId,
+        booking_date: booking.event_date,
+        package_name: booking.package_name,
+        time_slot: booking.event_time,
+        location: `${booking.emirate} - ${booking.area}`,
+        admin_note: '',
+      })
+      .select().single();
+    if (!error && data) {
+      setAssignments(prev => [data, ...prev]);
+      setAssigningTo(null);
     }
   };
 
-  const assignWorker = (assignmentId: string, workerId: string) => {
-    setAssignments(prev => prev.map(a =>
-      a.id === assignmentId && !a.workerIds.includes(workerId)
-        ? { ...a, workerIds: [...a.workerIds, workerId] }
-        : a
-    ));
-    setAssigningTo(null);
+  const removeAssignment = async (assignmentId: string) => {
+    const { error } = await supabase.from('worker_assignments').delete().eq('id', assignmentId);
+    if (!error) setAssignments(prev => prev.filter(a => a.id !== assignmentId));
   };
 
-  const removeWorkerFromAssignment = (assignmentId: string, workerId: string) => {
-    setAssignments(prev => prev.map(a =>
-      a.id === assignmentId
-        ? { ...a, workerIds: a.workerIds.filter(id => id !== workerId) }
-        : a
-    ));
-  };
-
-  const saveNote = () => {
+  const saveNote = async () => {
     if (!editingNote) return;
-    setAssignments(prev => prev.map(a =>
-      a.id === editingNote.assignmentId
-        ? { ...a, adminNotes: { ...a.adminNotes, [editingNote.workerId]: noteText } }
-        : a
-    ));
-    setEditingNote(null);
-    setNoteText('');
+    const { error } = await supabase
+      .from('worker_assignments')
+      .update({ admin_note: noteText })
+      .eq('id', editingNote.assignmentId);
+    if (!error) {
+      setAssignments(prev => prev.map(a =>
+        a.id === editingNote.assignmentId ? { ...a, admin_note: noteText } : a
+      ));
+      setEditingNote(null);
+      setNoteText('');
+    }
   };
 
   const earningsChartData = workers
@@ -171,7 +204,7 @@ export function WorkersPage() {
     .map(w => ({
       name: w.name.split(' ')[0],
       earnings: getWorkerEarnings(w.id),
-      events: getWorkerEventCount(w.id)
+      events: getWorkerEventCount(w.id),
     }));
 
   const selectedWorkerData = selectedWorker ? workers.find(w => w.id === selectedWorker) : null;
@@ -183,6 +216,14 @@ export function WorkersPage() {
     { id: 'earnings', label: 'Earnings' },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2Icon className="w-8 h-8 text-brand-blue animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
@@ -192,7 +233,7 @@ export function WorkersPage() {
           { label: 'Total Workers', value: totalWorkers, icon: UsersIcon, color: 'text-blue-400', bg: 'bg-blue-400/10' },
           { label: 'Active', value: activeWorkers, icon: UserCheckIcon, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
           { label: 'Inactive', value: inactiveWorkers, icon: UserXIcon, color: 'text-rose-400', bg: 'bg-rose-400/10' },
-          { label: 'Pay Owed (Month)', value: `AED ${totalPayOwed}`, icon: DollarSignIcon, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+          { label: 'Pay Owed', value: `AED ${totalPayOwed}`, icon: DollarSignIcon, color: 'text-purple-400', bg: 'bg-purple-400/10' },
         ].map((stat, i) => (
           <Card key={i}>
             <CardContent className="p-4 flex items-center space-x-4">
@@ -227,8 +268,7 @@ export function WorkersPage() {
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-bold text-slate-100">All Workers</h3>
             <Button onClick={() => setShowAddForm(!showAddForm)}>
-              <PlusIcon className="w-4 h-4 mr-2" />
-              Add Worker
+              <PlusIcon className="w-4 h-4 mr-2" />Add Worker
             </Button>
           </div>
 
@@ -239,41 +279,28 @@ export function WorkersPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-sm font-medium text-slate-300 block mb-1">Full Name</label>
-                      <input
-                        required
-                        type="text"
-                        value={newName}
-                        onChange={e => setNewName(e.target.value)}
+                      <input required value={newName} onChange={e => setNewName(e.target.value)}
                         placeholder="e.g. Ahmad Hassan"
-                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                      />
+                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-slate-300 block mb-1">Role</label>
-                      <select
-                        required
-                        value={newRole}
-                        onChange={e => setNewRole(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                      >
+                      <select required value={newRole} onChange={e => setNewRole(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue">
                         <option value="">Select Role...</option>
                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-slate-300 block mb-1">Phone</label>
-                      <input
-                        type="tel"
-                        value={newPhone}
-                        onChange={e => setNewPhone(e.target.value)}
+                      <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)}
                         placeholder="+971 50 000 0000"
-                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                      />
+                        className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
                     </div>
                   </div>
                   <div className="flex justify-end gap-3">
                     <Button variant="ghost" type="button" onClick={() => setShowAddForm(false)}>Cancel</Button>
-                    <Button type="submit">Add Worker</Button>
+                    <Button type="submit" disabled={saving}>{saving ? 'Adding...' : 'Add Worker'}</Button>
                   </div>
                 </form>
               </CardContent>
@@ -282,82 +309,62 @@ export function WorkersPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {workers.map(worker => (
-              <Card
+              <div
                 key={worker.id}
                 className={`cursor-pointer transition-all hover:border-slate-600 ${selectedWorker === worker.id ? 'border-brand-blue' : ''}`}
                 onClick={() => setSelectedWorker(selectedWorker === worker.id ? null : worker.id)}
               >
-                <CardContent className="p-5">
-                  {editingId === worker.id ? (
-                    <div className="space-y-3" onClick={e => e.stopPropagation()}>
-                      <input
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                        placeholder="Full Name"
-                      />
-                      <select
-                        value={editRole}
-                        onChange={e => setEditRole(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                      >
-                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <input
-                        value={editPhone}
-                        onChange={e => setEditPhone(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                        placeholder="Phone"
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleSaveEdit(worker.id)}>Save</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-bold text-lg text-slate-100">{worker.name}</h4>
+                        <p className="text-sm text-brand-blue font-medium">{worker.role}</p>
+                      </div>
+                      <Badge variant={worker.status === 'active' ? 'success' : 'danger'}>
+                        {worker.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center text-sm text-slate-400 mb-4">
+                      <PhoneIcon className="w-4 h-4 mr-2 shrink-0" />
+                      {worker.phone}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-slate-100">{getWorkerEventCount(worker.id)}</p>
+                        <p className="text-xs text-slate-400">Events</p>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-emerald-400">AED {getWorkerEarnings(worker.id)}</p>
+                        <p className="text-xs text-slate-400">Earned</p>
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="font-bold text-lg text-slate-100">{worker.name}</h4>
-                          <p className="text-sm text-brand-blue font-medium">{worker.role}</p>
-                        </div>
-                        <Badge variant={worker.status === 'active' ? 'success' : 'danger'}>
-                          {worker.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center text-sm text-slate-400 mb-4">
-                        <PhoneIcon className="w-4 h-4 mr-2 shrink-0" />
-                        {worker.phone}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-                          <p className="text-2xl font-bold text-slate-100">{getWorkerEventCount(worker.id)}</p>
-                          <p className="text-xs text-slate-400">Events</p>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-                          <p className="text-2xl font-bold text-emerald-400">AED {getWorkerEarnings(worker.id)}</p>
-                          <p className="text-xs text-slate-400">Earned</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                        <Button size="sm" variant="ghost" className="flex-1" onClick={() => startEdit(worker)}>
-                          <EditIcon className="w-3.5 h-3.5 mr-1" /> Edit
-                        </Button>
-                        <Button size="sm" variant="ghost" className="flex-1" onClick={() => toggleStatus(worker.id)}>
-                          {worker.status === 'active' ? 'Deactivate' : 'Activate'}
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-rose-400 hover:text-rose-300 px-2" onClick={() => handleDelete(worker.id)}>
-                          <TrashIcon className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                      <Button size="sm" variant="ghost" className="flex-1"
+                        onClick={() => {
+                          setEditingWorker(worker);
+                          setEditName(worker.name);
+                          setEditRole(worker.role);
+                          setEditPhone(worker.phone);
+                        }}>
+                        <EditIcon className="w-3.5 h-3.5 mr-1" /> Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" className="flex-1"
+                        onClick={() => toggleStatus(worker.id, worker.status)}>
+                        {worker.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-rose-400 px-2"
+                        onClick={() => handleDelete(worker.id)}>
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             ))}
           </div>
 
-          {/* Worker Detail Panel */}
+          {/* Worker History Panel */}
           {selectedWorkerData && (
             <Card className="border-brand-blue/30">
               <CardHeader className="flex flex-row items-center justify-between">
@@ -375,47 +382,38 @@ export function WorkersPage() {
                       <div key={a.id} className="bg-slate-800/50 rounded-xl p-4">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="font-bold text-slate-100">{a.customerName}</p>
-                            <p className="text-sm text-brand-blue">{a.package}</p>
+                            <p className="font-bold text-slate-100">{a.package_name}</p>
+                            <p className="text-sm text-brand-blue">{a.booking_ref}</p>
                           </div>
                           <div className="text-right text-sm text-slate-400">
-                            <p>{a.date}</p>
-                            <p>{a.timeSlot}</p>
+                            <p>{a.booking_date}</p>
+                            <p>{a.time_slot}</p>
                           </div>
                         </div>
                         <p className="text-xs text-slate-500 mb-2">{a.location}</p>
                         <div className="flex items-center justify-between">
-                          {editingNote?.assignmentId === a.id && editingNote?.workerId === selectedWorker ? (
+                          {editingNote?.assignmentId === a.id ? (
                             <div className="flex-1 flex gap-2">
-                              <input
-                                value={noteText}
-                                onChange={e => setNoteText(e.target.value)}
-                                placeholder="Add admin note..."
-                                className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                              />
+                              <input value={noteText} onChange={e => setNoteText(e.target.value)}
+                                placeholder="Add note..."
+                                className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
                               <Button size="sm" onClick={saveNote}>Save</Button>
                               <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)}>Cancel</Button>
                             </div>
                           ) : (
-                            <div className="flex-1">
-                              {a.adminNotes[selectedWorker!] ? (
-                                <p className="text-xs text-slate-400 italic">"{a.adminNotes[selectedWorker!]}"</p>
-                              ) : (
-                                <p className="text-xs text-slate-600">No note added</p>
-                              )}
-                            </div>
-                          )}
-                          {editingNote?.assignmentId !== a.id && (
-                            <Button
-                              size="sm" variant="ghost"
-                              onClick={() => {
-                                setEditingNote({ assignmentId: a.id, workerId: selectedWorker! });
-                                setNoteText(a.adminNotes[selectedWorker!] || '');
-                              }}
-                            >
-                              <EditIcon className="w-3 h-3 mr-1" />
-                              {a.adminNotes[selectedWorker!] ? 'Edit Note' : 'Add Note'}
-                            </Button>
+                            <>
+                              <p className="text-xs text-slate-400 italic flex-1">
+                                {a.admin_note || 'No note added'}
+                              </p>
+                              <Button size="sm" variant="ghost"
+                                onClick={() => {
+                                  setEditingNote({ assignmentId: a.id, workerId: selectedWorker! });
+                                  setNoteText(a.admin_note || '');
+                                }}>
+                                <EditIcon className="w-3 h-3 mr-1" />
+                                {a.admin_note ? 'Edit' : 'Add Note'}
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -432,127 +430,114 @@ export function WorkersPage() {
       {activeTab === 'assignments' && (
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-slate-100">Event Assignments</h3>
-          {assignments.map(assignment => (
-            <Card key={assignment.id}>
-              <CardContent className="p-5">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="font-bold text-brand-blue text-sm">{assignment.bookingRef}</span>
-                      {assignment.workerIds.length === 0 && (
-                        <Badge variant="warning">Unassigned</Badge>
-                      )}
-                    </div>
-                    <h4 className="font-bold text-lg text-slate-100">{assignment.customerName}</h4>
-                    <p className="text-sm text-slate-400">{assignment.package}</p>
-                  </div>
-                  <div className="text-sm text-slate-400 text-right">
-                    <div className="flex items-center gap-2 justify-end mb-1">
-                      <CalendarIcon className="w-4 h-4" />
-                      {assignment.date}
-                    </div>
-                    <div className="flex items-center gap-2 justify-end mb-1">
-                      <ClockIcon className="w-4 h-4" />
-                      {assignment.timeSlot}
-                    </div>
-                    <p>{assignment.location}</p>
-                  </div>
-                </div>
-
-                {/* Assigned Workers */}
-                <div className="space-y-2 mb-3">
-                  {assignment.workerIds.length > 0 ? (
-                    assignment.workerIds.map(wId => {
-                      const worker = workers.find(w => w.id === wId);
-                      if (!worker) return null;
-                      return (
-                        <div key={wId} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-2">
-                          <div>
-                            <span className="font-medium text-slate-200">{worker.name}</span>
-                            <span className="text-xs text-slate-400 ml-2">{worker.role}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {editingNote?.assignmentId === assignment.id && editingNote?.workerId === wId ? (
-                              <div className="flex gap-2">
-                                <input
-                                  value={noteText}
-                                  onChange={e => setNoteText(e.target.value)}
-                                  placeholder="Add note..."
-                                  className="px-3 py-1 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue w-48"
-                                />
-                                <Button size="sm" onClick={saveNote}>Save</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)}>Cancel</Button>
-                              </div>
-                            ) : (
-                              <>
-                                {assignment.adminNotes[wId] && (
-                                  <span className="text-xs text-slate-400 italic">"{assignment.adminNotes[wId]}"</span>
-                                )}
-                                <Button
-                                  size="sm" variant="ghost"
-                                  onClick={() => {
-                                    setEditingNote({ assignmentId: assignment.id, workerId: wId });
-                                    setNoteText(assignment.adminNotes[wId] || '');
-                                  }}
-                                >
-                                  <EditIcon className="w-3 h-3" />
-                                </Button>
-                              </>
-                            )}
-                            <button
-                              onClick={() => removeWorkerFromAssignment(assignment.id, wId)}
-                              className="text-rose-400 hover:text-rose-300 transition-colors"
-                            >
-                              <XIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-slate-500 italic">No workers assigned yet.</p>
-                  )}
-                </div>
-
-                {/* Assign Worker */}
-                {assigningTo === assignment.id ? (
-                  <div className="bg-slate-800/30 rounded-xl p-4">
-                    <p className="text-sm font-medium text-slate-300 mb-3">Select worker to assign:</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {workers.filter(w => w.status === 'active' && !assignment.workerIds.includes(w.id)).map(worker => {
-                        const conflict = hasConflict(worker.id, assignment.id);
-                        return (
-                          <button
-                            key={worker.id}
-                            onClick={() => !conflict && assignWorker(assignment.id, worker.id)}
-                            className={`flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${conflict ? 'border-rose-500/30 bg-rose-500/5 opacity-60 cursor-not-allowed' : 'border-slate-700 hover:border-brand-blue hover:bg-brand-blue/5 cursor-pointer'}`}
-                          >
-                            <div>
-                              <p className="font-medium text-slate-200 text-sm">{worker.name}</p>
-                              <p className="text-xs text-slate-400">{worker.role}</p>
-                            </div>
-                            {conflict ? (
-                              <Badge variant="danger">Conflict</Badge>
-                            ) : (
-                              <ChevronRightIcon className="w-4 h-4 text-slate-500" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <Button variant="ghost" size="sm" className="mt-3" onClick={() => setAssigningTo(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={() => setAssigningTo(assignment.id)}>
-                    <PlusIcon className="w-3.5 h-3.5 mr-1" />
-                    Assign Worker
-                  </Button>
-                )}
+          {bookings.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-slate-400">
+                No upcoming bookings to assign workers to.
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            bookings.map(booking => {
+              const bookingAssignments = assignments.filter(a => a.booking_ref === booking.booking_ref);
+              return (
+                <Card key={booking.id}>
+                  <CardContent className="p-5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <span className="font-bold text-brand-blue text-sm">{booking.booking_ref}</span>
+                          {bookingAssignments.length === 0 && <Badge variant="warning">Unassigned</Badge>}
+                        </div>
+                        <h4 className="font-bold text-lg text-slate-100">{booking.customer_name}</h4>
+                        <p className="text-sm text-slate-400">{booking.package_name}</p>
+                      </div>
+                      <div className="text-sm text-slate-400 text-right">
+                        <div className="flex items-center gap-2 justify-end mb-1">
+                          <CalendarIcon className="w-4 h-4" />{booking.event_date}
+                        </div>
+                        <p>{booking.event_time}</p>
+                        <p>{booking.emirate}</p>
+                      </div>
+                    </div>
+
+                    {/* Assigned Workers */}
+                    <div className="space-y-2 mb-3">
+                      {bookingAssignments.length > 0 ? (
+                        bookingAssignments.map(a => {
+                          const worker = workers.find(w => w.id === a.worker_id);
+                          return (
+                            <div key={a.id} className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-2">
+                              <div>
+                                <span className="font-medium text-slate-200">{worker?.name}</span>
+                                <span className="text-xs text-slate-400 ml-2">{worker?.role}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                {editingNote?.assignmentId === a.id ? (
+                                  <div className="flex gap-2">
+                                    <input value={noteText} onChange={e => setNoteText(e.target.value)}
+                                      className="px-3 py-1 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue w-48" />
+                                    <Button size="sm" onClick={saveNote}>Save</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {a.admin_note && <span className="text-xs text-slate-400 italic">"{a.admin_note}"</span>}
+                                    <Button size="sm" variant="ghost"
+                                      onClick={() => {
+                                        setEditingNote({ assignmentId: a.id, workerId: a.worker_id });
+                                        setNoteText(a.admin_note || '');
+                                      }}>
+                                      <EditIcon className="w-3 h-3" />
+                                    </Button>
+                                  </>
+                                )}
+                                <button onClick={() => removeAssignment(a.id)} className="text-rose-400 hover:text-rose-300">
+                                  <XIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-slate-500 italic">No workers assigned yet.</p>
+                      )}
+                    </div>
+
+                    {/* Assign Worker */}
+                    {assigningTo === booking.booking_ref ? (
+                      <div className="bg-slate-800/30 rounded-xl p-4">
+                        <p className="text-sm font-medium text-slate-300 mb-3">Select worker:</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {workers
+                            .filter(w => w.status === 'active' && !bookingAssignments.some(a => a.worker_id === w.id))
+                            .map(worker => {
+                              const conflict = hasConflict(worker.id, booking.booking_ref);
+                              return (
+                                <button key={worker.id}
+                                  onClick={() => !conflict && assignWorker(booking.booking_ref, worker.id)}
+                                  className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${conflict ? 'border-rose-500/30 bg-rose-500/5 opacity-60 cursor-not-allowed' : 'border-slate-700 hover:border-brand-blue hover:bg-brand-blue/5'}`}
+                                >
+                                  <div>
+                                    <p className="font-medium text-slate-200 text-sm">{worker.name}</p>
+                                    <p className="text-xs text-slate-400">{worker.role}</p>
+                                  </div>
+                                  {conflict && <Badge variant="danger">Conflict</Badge>}
+                                </button>
+                              );
+                            })}
+                        </div>
+                        <Button variant="ghost" size="sm" className="mt-3" onClick={() => setAssigningTo(null)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => setAssigningTo(booking.booking_ref)}>
+                        <PlusIcon className="w-3.5 h-3.5 mr-1" />Assign Worker
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
         </div>
       )}
 
@@ -561,11 +546,8 @@ export function WorkersPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-slate-100">Worker Earnings</h3>
-            <select
-              value={earningsPeriod}
-              onChange={e => setEarningsPeriod(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
-            >
+            <select value={earningsPeriod} onChange={e => setEarningsPeriod(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue">
               <option value="week">This Week</option>
               <option value="month">This Month</option>
               <option value="year">This Year</option>
@@ -573,7 +555,6 @@ export function WorkersPage() {
             </select>
           </div>
 
-          {/* Chart */}
           <Card>
             <CardHeader><CardTitle>Earnings by Worker (AED)</CardTitle></CardHeader>
             <CardContent>
@@ -583,10 +564,8 @@ export function WorkersPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                     <XAxis dataKey="name" stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <YAxis stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => `AED ${v}`} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
-                      formatter={(value: number) => [`AED ${value}`, 'Earnings']}
-                    />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
+                      formatter={(value: number) => [`AED ${value}`, 'Earnings']} />
                     <Bar dataKey="earnings" fill="#ec4899" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -594,7 +573,6 @@ export function WorkersPage() {
             </CardContent>
           </Card>
 
-          {/* Earnings Table */}
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -614,17 +592,15 @@ export function WorkersPage() {
                       <TableCell className="font-medium text-slate-200">{worker.name}</TableCell>
                       <TableCell className="text-slate-400">{worker.role}</TableCell>
                       <TableCell>
-                        <Badge variant={worker.status === 'active' ? 'success' : 'danger'}>
-                          {worker.status}
-                        </Badge>
+                        <Badge variant={worker.status === 'active' ? 'success' : 'danger'}>{worker.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-slate-300">{getWorkerEventCount(worker.id)}</TableCell>
-                      <TableCell className="text-slate-300">AED {PAY_PER_EVENT}</TableCell>
+                      <TableCell>{getWorkerEventCount(worker.id)}</TableCell>
+                      <TableCell>AED {PAY_PER_EVENT}</TableCell>
                       <TableCell className="font-bold text-emerald-400">AED {getWorkerEarnings(worker.id)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow>
-                    <TableCell colSpan={5} className="font-bold text-slate-200">Total</TableCell>
+                    <td colSpan={5} className="font-bold text-slate-200">Total</td>
                     <TableCell className="font-bold text-emerald-400">AED {totalPayOwed}</TableCell>
                   </TableRow>
                 </TableBody>
@@ -634,10 +610,39 @@ export function WorkersPage() {
         </div>
       )}
 
+      {/* Edit Worker Modal */}
+      {editingWorker && (
+        <EditModal title="Edit Worker" onClose={() => setEditingWorker(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-slate-300 block mb-1">Full Name</label>
+              <input value={editName} onChange={e => setEditName(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-300 block mb-1">Role</label>
+              <select value={editRole} onChange={e => setEditRole(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-300 block mb-1">Phone</label>
+              <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={() => setEditingWorker(null)}>Cancel</Button>
+              <Button onClick={handleSaveEdit} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+            </div>
+          </div>
+        </EditModal>
+      )}
+
       {confirmDelete && (
         <ConfirmModal
           title="Delete Worker"
-          message="Are you sure you want to delete this worker? This cannot be undone."
+          message="Are you sure you want to delete this worker?"
           confirmLabel="Delete"
           onConfirm={confirmDeleteWorker}
           onCancel={() => setConfirmDelete(null)}
