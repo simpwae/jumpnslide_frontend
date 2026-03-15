@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -15,6 +15,8 @@ import { ContactPage } from './pages/ContactPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { AdminApp } from './admin/AdminApp';
+import { NotFoundPage } from './pages/NotFoundPage';
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -22,22 +24,25 @@ function ScrollToTop() {
   }, [pathname]);
   return null;
 }
+// After
 function AppRoutes() {
-  const { pathname } = useLocation();
-  const isAdmin = pathname.startsWith('/admin');
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith('/admin');
+
   if (isAdmin) {
     return (
       <Routes>
         <Route path="/admin/*" element={<AdminApp />} />
-      </Routes>);
-
+      </Routes>
+    );
   }
+
   return (
     <div className="flex flex-col min-h-screen font-body">
       <Navbar />
       <div className="flex-grow">
         <AnimatePresence mode="wait">
-          <Routes>
+          <Routes location={location} key={location.pathname}>
             <Route path="/" element={<HomePage />} />
             <Route path="/packages" element={<PackagesPage />} />
             <Route path="/packages/:slug" element={<PackagePage />} />
@@ -48,13 +53,14 @@ function AppRoutes() {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AnimatePresence>
       </div>
       <Footer />
       <WhatsAppButton />
-    </div>);
-
+    </div>
+  );
 }
 export function App() {
   return (

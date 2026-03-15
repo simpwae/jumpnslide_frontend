@@ -253,8 +253,9 @@ export function DashboardPage() {
   const [chartMetric, setChartMetric] = useState<'bookings' | 'revenue'>(
     'bookings'
   );
-  const currentMonthlyData =
-  selectedYear === '2026' ? monthlyData2026 : monthlyData2025;
+ const currentMonthlyData = (
+  selectedYear === '2026' ? monthlyData2026 : monthlyData2025
+).filter(month => month.bookings > 0 || month.revenue > 0);
   const stats = [
   {
     title: 'Total Bookings',

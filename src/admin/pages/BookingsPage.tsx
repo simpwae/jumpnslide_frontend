@@ -179,9 +179,17 @@ export function BookingsPage() {
                 <option>Completed</option>
                 <option>Payment Uploaded</option>
               </select>
-              <Button variant="outline" className="px-3">
-                <FilterIcon className="w-4 h-4" />
-              </Button>
+              <Button 
+                  variant="outline" 
+                  className="px-3"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStatusFilter('All Statuses');
+                  }}
+                  title="Clear filters"
+                >
+                  <FilterIcon className="w-4 h-4" />
+                </Button>
             </div>
           </div>
         </CardHeader>

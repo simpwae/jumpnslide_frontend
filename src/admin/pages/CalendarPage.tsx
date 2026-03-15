@@ -61,7 +61,10 @@ const mockBookings = [
 }];
 
 export function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // March 2026
+  const [currentDate, setCurrentDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [lockedDates, setLockedDates] = useState<string[]>([
@@ -159,7 +162,8 @@ export function CalendarPage() {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
     const dayBookings = getBookingsForDate(dateStr);
     const isLocked = lockedDates.includes(dateStr);
-    const isToday = i === 10 && currentDate.getMonth() === 2; // Mock today as March 10
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = dateStr === todayStr;
     let borderColor = 'border-slate-800';
     if (isToday) borderColor = 'border-brand-blue ring-1 ring-brand-blue';else
     if (isLocked) borderColor = 'border-rose-500/50';else
@@ -404,10 +408,20 @@ export function CalendarPage() {
                       {booking.package}
                     </p>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" className="flex-1">
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
+                      <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => window.location.href = `/admin/bookings/${booking.id}`}
+                        >
+                          View
+                        </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => window.open(`https://wa.me/${booking.id}`, '_blank')}
+                      >
                         Contact
                       </Button>
                     </div>

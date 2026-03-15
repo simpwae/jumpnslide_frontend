@@ -28,7 +28,7 @@ export interface Package {
     fixedMachines: string[];
     poolOption: 'included' | 'optional' | 'none';
     fixedItems: string[];
-    freeItems: string[];
+    freeItems: Array<{ name: string; isChoice?: boolean }>;
   };
   duration: string;
   servingsPerMachine: number;

@@ -7,10 +7,9 @@ import {
   ClockIcon,
   InstagramIcon,
   FacebookIcon,
-  VideoIcon,
+  MusicIcon,
   SendIcon,
-  MessageCircleIcon } from
-'lucide-react';
+  MessageCircleIcon } from 'lucide-react';
 export function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -192,7 +191,7 @@ export function ContactPage() {
                   rel="noopener noreferrer"
                   className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-colors">
                   
-                  <VideoIcon className="w-6 h-6" />
+                  <MusicIcon className="w-6 h-6" />
                 </a>
               </div>
             </motion.div>

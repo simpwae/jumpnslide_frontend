@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React from 'react';
 import { PhoneIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 interface WhatsAppButtonProps {

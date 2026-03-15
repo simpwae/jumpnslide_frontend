@@ -13,6 +13,7 @@ export function PackagePage() {
   const [selectedInflatable, setSelectedInflatable] = useState<string | null>(
     null
   );
+  const [machineError, setMachineError] = useState('');
   const [wantsPool, setWantsPool] = useState(false);
   const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
   const [servings, setServings] = useState<Record<string, number>>({});
@@ -22,8 +23,14 @@ export function PackagePage() {
   });
   const [selectedFreeItem, setSelectedFreeItem] = useState<string | null>(null);
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [slug]);
+  window.scrollTo(0, 0);
+  setSelectedInflatable(null);
+  setSelectedMachines([]);
+  setServings({});
+  setWantsPool(false);
+  setExtras({ chairs: 0, tables: 0 });
+  setSelectedFreeItem(null);
+}, [slug]);
   if (!pkg) {
     return <div className="pt-32 text-center h-screen">Package not found.</div>;
   }
@@ -55,11 +62,10 @@ export function PackagePage() {
       setServings(newServings);
     } else {
       if (selectedMachines.length >= pkg.inclusions.selectableMachines) {
-        alert(
-          `You can only select ${pkg.inclusions.selectableMachines} machines for this package.`
-        );
-        return;
-      }
+            setMachineError(`You can only select ${pkg.inclusions.selectableMachines} machines.`);
+            setTimeout(() => setMachineError(''), 3000);
+            return;
+          }
       setSelectedMachines((prev) => [...prev, id]);
       setServings((prev) => ({
         ...prev,
@@ -107,7 +113,7 @@ export function PackagePage() {
   const total = pkg.price + extrasTotal;
   const advance = Math.ceil(total / 2);
   // Validation
-  const hasFreeChoice = pkg.inclusions.freeItems.some((i) => i.includes('or'));
+  const hasFreeChoice = pkg.inclusions.freeItems.some((i) => i.isChoice === true);
   const isComplete =
   (pkg.inclusions.selectableInflatables === 0 ||
   selectedInflatable !== null) && (
@@ -131,31 +137,15 @@ export function PackagePage() {
   };
   // Parse Free Items for choices
   const parsedFreeItems = pkg.inclusions.freeItems.flatMap((item) => {
-    if (item === 'Mini Bouncy Castle (Unicorn or Spider-Man)') {
-      return [
-      {
-        id: 'free-unicorn',
-        name: 'Mini Bouncy Castle (Unicorn)',
-        gradient: 'from-fuchsia-300 to-cyan-300',
-        isChoice: true
-      },
-      {
-        id: 'free-spiderman',
-        name: 'Mini Bouncy Castle (Spider-Man)',
-        gradient: 'from-red-600 to-blue-600',
-        isChoice: true
-      }];
-
-    }
+  if (item.isChoice && item.name === 'Mini Bouncy Castle (Unicorn or Spider-Man)') {
     return [
-    {
-      id: item,
-      name: item,
-      gradient: 'from-brand-blue to-brand-purple',
-      isChoice: false
-    }];
+      { id: 'free-unicorn', name: 'Mini Bouncy Castle (Unicorn)', gradient: 'from-fuchsia-300 to-cyan-300', isChoice: true },
+      { id: 'free-spiderman', name: 'Mini Bouncy Castle (Spider-Man)', gradient: 'from-red-600 to-blue-600', isChoice: true }
+    ];
+  }
+  return [{ id: item.name, name: item.name, gradient: 'from-brand-blue to-brand-purple', isChoice: false }];
+});
 
-  });
   return (
     <main className="pt-20 bg-gray-50 min-h-screen pb-24">
       {/* Header */}
@@ -296,6 +286,11 @@ export function PackagePage() {
             {(pkg.inclusions.selectableMachines > 0 ||
             pkg.inclusions.fixedMachines.length > 0) &&
             <section>
+              {machineError && (
+                  <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-medium mb-4">
+                    {machineError}
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-heading font-bold text-2xl text-brand-navy">
                     {pkg.inclusions.poolOption !== 'none' ? '3' : '2'}. Party

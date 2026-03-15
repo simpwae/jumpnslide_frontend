@@ -13,40 +13,45 @@ import { CalendarPage } from './pages/CalendarPage';
 import { TestimonialsPage } from './pages/TestimonialsPage';
 import { FAQPage } from './pages/FAQPage';
 import { WorkersPage } from './pages/WorkersPage';
-import { LanguageProvider } from './context/LanguageContext';
-export function AdminApp() {
-  // Simple mock auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  return (
-    <LanguageProvider>
-      {!isAuthenticated ?
-      <LoginPage onLogin={() => setIsAuthenticated(true)} /> :
 
-      <AdminLayout onLogout={() => setIsAuthenticated(false)}>
+export function AdminApp() {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => sessionStorage.getItem('admin_auth') === 'true'
+  );
+
+  const handleLogin = () => {
+    sessionStorage.setItem('admin_auth', 'true');
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin_auth');
+    setIsAuthenticated(false);
+  };
+
+  return (
+    <>
+      {!isAuthenticated ? (
+        <LoginPage onLogin={handleLogin} />
+      ) : (
+        <AdminLayout onLogout={handleLogout}>
           <Routes>
-            <Route
-            path="/"
-            element={<Navigate to="/admin/dashboard" replace />} />
-          
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/bookings/:id" element={<BookingDetailPage />} />
-            <Route path="/packages" element={<PackagesPage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/gallery" element={<GalleryPage />} />
-            <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/testimonials" element={<TestimonialsPage />} />
-            <Route path="/faq" element={<FAQPage />} />
-            <Route path="/workers" element={<WorkersPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            {/* Fallback for unknown admin routes */}
-            <Route
-            path="*"
-            element={<Navigate to="/admin/dashboard" replace />} />
-          
+            <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="bookings" element={<BookingsPage />} />
+            <Route path="bookings/:id" element={<BookingDetailPage />} />
+            <Route path="packages" element={<PackagesPage />} />
+            <Route path="inventory" element={<InventoryPage />} />
+            <Route path="gallery" element={<GalleryPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="testimonials" element={<TestimonialsPage />} />
+            <Route path="faq" element={<FAQPage />} />
+            <Route path="workers" element={<WorkersPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>
         </AdminLayout>
-      }
-    </LanguageProvider>);
-
+      )}
+    </>
+  );
 }

@@ -211,7 +211,10 @@ export const PACKAGES: Package[] = [
     fixedMachines: [],
     poolOption: 'none',
     fixedItems: ['10 Kids Chairs', '2 Kids Tables'],
-    freeItems: ['Speaker System', 'Balloon Arch']
+    freeItems: [
+  { name: 'Speaker System' },
+  { name: 'Balloon Arch' }
+]
   },
   duration: '4-6 hours',
   servingsPerMachine: 30,
@@ -237,7 +240,9 @@ export const PACKAGES: Package[] = [
     fixedMachines: ['mach-potato', 'mach-choco', 'mach-icecream'],
     poolOption: 'included',
     fixedItems: [],
-    freeItems: ['Mini Bouncy Castle (Unicorn or Spider-Man)']
+    freeItems: [
+  { name: 'Mini Bouncy Castle (Unicorn or Spider-Man)', isChoice: true }
+]
   },
   duration: '4-6 hours',
   servingsPerMachine: 30,
@@ -263,7 +268,8 @@ export const PACKAGES: Package[] = [
     fixedMachines: [],
     poolOption: 'optional',
     fixedItems: ['10 Kids Chairs', '2 Kids Tables', 'Balloon Arch'],
-    freeItems: ['Balloon Standy']
+    freeItems: [{ name: 'Balloon Standy' }]
+
   },
   duration: '4-6 hours',
   servingsPerMachine: 30,
@@ -295,7 +301,11 @@ export const PACKAGES: Package[] = [
     'Table Accessories & Printed Tissue',
     'Water Bottles & Table Decor Pieces'],
 
-    freeItems: ['Gift Bags', 'Face Painting', 'Party Games']
+    freeItems: [
+  { name: 'Gift Bags' },
+  { name: 'Face Painting' },
+  { name: 'Party Games' }
+]
   },
   duration: '4-6 hours',
   servingsPerMachine: 30,
@@ -328,7 +338,11 @@ export const PACKAGES: Package[] = [
     'Table Accessories & Printed Tissue',
     'Water Bottles & Table Decor Pieces'],
 
-    freeItems: ['Gift Bags', 'Face Painting', 'Party Games']
+    freeItems: [
+  { name: 'Gift Bags' },
+  { name: 'Face Painting' },
+  { name: 'Party Games' }
+]
   },
   duration: '4-6 hours',
   servingsPerMachine: 30,
