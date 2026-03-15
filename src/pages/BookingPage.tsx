@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PACKAGES } from '../data';
 import { CheckCircle2Icon } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const pkg = PACKAGES.find((p) => p.slug === slug);
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     date: '',
@@ -105,32 +107,68 @@ export function BookingPage() {
     formData.timeConfirmed &&
     (formData.timeSlot !== 'custom' || isDurationValid);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (step === 1) {
-      if (!isStep1Valid) return;
-      setStep(2);
-    } else {
-      sessionStorage.removeItem(`booking_${slug}`);
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const suffix = crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
-      const ref = `JNS-${dateStr}-${suffix}`;
-      navigate(`/payment/${ref}`, {
-        state: {
-          packageName: pkg.name,
-          totalAmount: total,
-          advanceAmount: advance,
-          customerName: formData.name,
-          customerPhone: formData.phone,
-          customerEmail: formData.email,
-          eventDate: formData.date,
-          eventTime: getSelectedTimeText(),
-          emirate: formData.emirate,
-          address: formData.address,
-        }
-      });
-    }
-  };
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (step === 1) {
+    if (!isStep1Valid) return;
+    setStep(2);
+    return;
+  }
+
+  // Step 2 submit — save to Supabase first
+  setIsSubmitting(true);
+  setSubmitError('');
+
+  try {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const suffix = crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
+    const ref = `JNS-${dateStr}-${suffix}`;
+
+    const { error } = await supabase.from('bookings').insert({
+      booking_ref: ref,
+      status: 'Pending Payment',
+      package_name: pkg.name,
+      customer_name: formData.name,
+      customer_phone: formData.phone,
+      customer_email: formData.email,
+      event_date: formData.date,
+      event_time: getSelectedTimeText(),
+      emirate: formData.emirate,
+      area: formData.area,
+      address: formData.address,
+      special_requests: formData.requests || null,
+      total_amount: Number(total),
+      advance_amount: Number(advance),
+      delivery_fee: Number(deliveryFee),
+    });
+
+    if (error) throw error;
+
+    // Navigate to payment page
+    navigate(`/payment/${ref}`, {
+      state: {
+        packageName: pkg.name,
+        totalAmount: total,
+        advanceAmount: advance,
+        deliveryFee: deliveryFee,
+        customerName: formData.name,
+        customerPhone: formData.phone,
+        customerEmail: formData.email,
+        eventDate: formData.date,
+        eventTime: getSelectedTimeText(),
+        emirate: formData.emirate,
+        area: formData.area,
+        address: formData.address,
+        specialRequests: formData.requests,
+      }
+    });
+
+  } catch (error) {
+    console.error('Error saving booking:', error);
+    setSubmitError('Something went wrong. Please try again or WhatsApp us at +971 50 647 7052.');
+    setIsSubmitting(false);
+  }
+};
 
   const stepLabel = ['Date & Time', 'Your Details', 'Payment'];
 
@@ -277,17 +315,22 @@ export function BookingPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp Number</label>
-                    <input
-                      required type="tel"
-                      inputMode="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      pattern="(\+971|0)[0-9]{9}"
-                      title="Enter a valid UAE number e.g. +971501234567"
-                      className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none"
-                    />
-                  </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp Number</label>
+                        <input
+                          required
+                          type="tel"
+                          inputMode="tel"
+                          value={formData.phone}
+                          onChange={(e) => {
+                            // Strip spaces automatically
+                            const cleaned = e.target.value.replace(/\s+/g, '');
+                            setFormData({ ...formData, phone: cleaned });
+                          }}
+                          placeholder="+971501234567"
+                          className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Enter UAE number e.g. +971501234567</p>
+                      </div>
                 </div>
 
                 <div>
@@ -372,12 +415,20 @@ export function BookingPage() {
                   >
                     Back
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-4 bg-gradient-brand text-white rounded-xl font-bold hover:opacity-90 transition-opacity"
-                  >
-                    Confirm & Proceed to Payment
-                  </button>
+                 <>
+                    {submitError && (
+                      <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm mb-4">
+                        {submitError}
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 py-4 bg-gradient-brand text-white rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Saving...' : 'Confirm & Proceed to Payment'}
+                    </button>
+                  </>
                 </div>
               </div>
             )}
