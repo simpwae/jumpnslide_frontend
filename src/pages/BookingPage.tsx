@@ -45,6 +45,7 @@ export function BookingPage() {
 
   const today = new Date().toISOString().split('T')[0];
 
+
   const emirates = [
     'Ras Al Khaimah', 'Dubai', 'Sharjah', 'Ajman',
     'Umm Al Quwain', 'Abu Dhabi', 'Fujairah'
@@ -166,16 +167,16 @@ export function BookingPage() {
             {step === 1 && (
               <div className="space-y-8">
                 <div>
-                  <h2 className="font-bold text-xl text-brand-navy mb-4">Select Date</h2>
-                  <input
-                    type="date"
-                    required
-                    min={today}
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none text-lg"
-                  />
-                </div>
+                    <h2 className="font-bold text-xl text-brand-navy mb-4">Select Date</h2>
+                    <input
+                      type="date"
+                      required
+                      min={today}
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none text-lg"
+                    />
+                  </div>
 
                 <div>
                   <h2 className="font-bold text-xl text-brand-navy mb-4">Select Time Slot</h2>
@@ -279,8 +280,11 @@ export function BookingPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp Number</label>
                     <input
                       required type="tel"
+                      inputMode="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      pattern="(\+971|0)[0-9]{9}"
+                      title="Enter a valid UAE number e.g. +971501234567"
                       className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-blue outline-none"
                     />
                   </div>

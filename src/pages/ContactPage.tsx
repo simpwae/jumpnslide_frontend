@@ -170,7 +170,7 @@ export function ContactPage() {
               </h3>
               <div className="flex justify-center space-x-4">
                 <a
-                  href="https://instagram.com/jumpnslide4kids"
+                  href="https://www.instagram.com/jumpnslide4kids"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-brand-pink transition-colors">
@@ -178,7 +178,7 @@ export function ContactPage() {
                   <InstagramIcon className="w-6 h-6" />
                 </a>
                 <a
-                  href="https://facebook.com/jumpnslide4kids"
+                  href="https://www.facebook.com/jumpnslide4kids"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-brand-blue transition-colors">
@@ -186,7 +186,7 @@ export function ContactPage() {
                   <FacebookIcon className="w-6 h-6" />
                 </a>
                 <a
-                  href="https://tiktok.com/@jumpnslide4kids"
+                  href="https://www.tiktok.com/@jumpnslide4kids"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-colors">

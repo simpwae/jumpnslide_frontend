@@ -1,0 +1,49 @@
+🟡 HIGH-05 — Page Title Is Still the Magic Patterns Placeholder
+No SEO Meta Tags Anywhere
+HIGH-07 — AnimatePresence on Routes Has No key Props — Page Transitions Won't Animate
+🟡 HIGH-08 — Phone Number Validation Is Absent
+🔵 MED-01 — font-arabic Tailwind Class Is Not Defined
+🔵 MED-02 — BookingPage Does Not Pass Any Booking Data to PaymentPage
+🔵 MED-03 — Vite Config Is Missing Path Alias for @ Imports
+MED-04 — All Admin Data Is Hardcoded — No Real State Management
+Files: DashboardPage.tsx, BookingsPage.tsx, WorkersPage.tsx, TestimonialsPage.tsx, FAQPage.tsx, InventoryPage.tsx, CalendarPage.tsx
+Description:
+Every admin page defines its data as const arrays inside the component file. Actions like "Add Worker," "Delete Testimonial," "Save FAQ" modify local component state only. Refreshing the page loses all changes. There is no shared state between pages — changes on one page are invisible to another.
+Impact: 🔵 The admin panel is a visual mockup. No actual management is possible.
+Fix: Implement a global state solution. Options in order of simplicity:
+
+React Context + useReducer (no external dependency, good for small datasets)
+Zustand (lightweight, minimal boilerplate)
+Firebase Firestore (real persistence, free tier generous)
+Supabase (PostgreSQL, real-time, free tier)
+🔵 MED-05 — SettingsPage Save Button Does Nothing Real
+🔵 MED-06 — No Favicon — Browser Tab Shows Missing Icon
+🔵 MED-07 — PackagePage Wizard Allows Submitting When Incomplete Without Clear Feedback
+⚪ MIN-01 — import { Component } from 'react' in Multiple Files (Unused)
+⚪ MIN-02 — import { createElement } from 'react' in BookingsPage (Unused)
+⚪ MIN-03 — TikTok Social Link Uses Wrong Icon (VideoIcon instead of TikTok)
+⚪ MIN-04 — Dashboard Shows 2026 Monthly Data With Many Zero Values
+⚪ MIN-05 — Social Media URLs Point to Placeholder Handles
+⚪ MIN-06 — GalleryPage (Public) Is a Different Component from GalleryPage (Admin)
+⚪ MIN-07 — PackagePage.tsx Has a Hardcoded alert() for Max Servings (Secondary)
+⚪ MIN-08 — handleSaveNotes Uses alert() in Admin
+UX-01 — Booking Flow Loses All State on Back Navigation
+UX-02 — Payment Page Displays No Amount Due
+UX-03 — "Pay Later" Permanently Changes Status — No Real Timer
+UX-04 — No Loading Skeleton or Placeholder for Pages
+UX-05 — Admin Panel Filter Button in BookingsPage Is Decorative Only
+UX-06 — Mobile: Custom Time Picker Uses 24h Options That Aren't Labeled
+SEC-01 — Admin Password Hardcoded in Client-Side Bundle
+SEC-03 — No Rate Limiting on Contact/Booking Forms
+SEC-04 — No CSRF Protection
+SEC-05 — No Content Security Policy Header
+PERF-01 — Heavy Dependencies Loaded Globally
+PERF-02 — HeroSection setInterval Has No Cleanup on Re-render
+PERF-03 — All Package Data Is Imported on Every Page
+PERF-04 — No Image Optimization
+11. Vercel Deployment Risks
+RiskSeverityStatusMissing vercel.json for SPA routing (FATAL-08)🔴 FatalNot presentWrong config filenames (FATAL-02)🔴 FatalWill silently fail buildTailwind purges all CSS (FATAL-05)🔴 FatalWrong content pathNo VITE_ env vars for sensitive data🟠 CriticalData hardcodedNo backend — Vercel Serverless Functions not set up🟠 CriticalNo /api/ directoryLarge JS bundle from recharts + framer-motion🟡 HighNo code splitting
+Google Fonts loaded via CSS @import🔵 MediumBlocks rendering, use <link> in HTML insteadVite SPA has no SSR — poor SEO🔵 MediumGoogle may not index it wellNo public/ folder for static assets🔵 MediumFavicon, OG image, robots.txt missing
+
+
+

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import React, { useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -14,8 +14,9 @@ import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
-import { AdminApp } from './admin/AdminApp';
 import { NotFoundPage } from './pages/NotFoundPage';
+
+const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -24,7 +25,7 @@ function ScrollToTop() {
   }, [pathname]);
   return null;
 }
-// After
+
 function AppRoutes() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
@@ -32,7 +33,15 @@ function AppRoutes() {
   if (isAdmin) {
     return (
       <Routes>
-        <Route path="/admin/*" element={<AdminApp />} />
+        <Route path="/admin/*" element={
+          <Suspense fallback={
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+              <div className="text-white font-medium">Loading...</div>
+            </div>
+          }>
+            <AdminApp />
+          </Suspense>
+        } />
       </Routes>
     );
   }
@@ -62,11 +71,12 @@ function AppRoutes() {
     </div>
   );
 }
+
 export function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
       <AppRoutes />
-    </BrowserRouter>);
-
+    </BrowserRouter>
+  );
 }

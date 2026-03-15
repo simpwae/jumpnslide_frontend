@@ -55,3 +55,5 @@ export function AdminApp() {
     </>
   );
 }
+
+export default AdminApp;  
