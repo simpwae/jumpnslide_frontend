@@ -13,7 +13,7 @@ export function AboutPage() {
   const stats = [
   {
     label: 'Happy Families',
-    value: '400+',
+    value: '1000+',
     icon: SmileIcon
   },
   {
@@ -103,7 +103,7 @@ export function AboutPage() {
               once: true
             }}>
             
-            Jump N Slide 4 Kids was founded with a simple, heartfelt mission: to
+            Jump N Slide 4 Kids was founded with a simple, heartfelt mission to
             make children's parties spectacular without the overwhelming stress
             for parents. We know that organizing a party can be exhausting, so
             we decided to change the game.
@@ -124,10 +124,10 @@ export function AboutPage() {
               delay: 0.1
             }}>
             
-            Based in Ras Al Khaimah, we started small—with just one bouncy
+            Based in Ajman, we started small—with just one bouncy
             castle and a passion for seeing kids smile. Through word-of-mouth
             and a commitment to impeccable service, we quickly grew. Today, we
-            are proud to have served over 400 families, expanding our reach to
+            are proud to have served over 1000+ families, expanding our reach to
             deliver joy across all 7 emirates of the UAE.
           </motion.p>
           <motion.p
@@ -146,7 +146,7 @@ export function AboutPage() {
               delay: 0.2
             }}>
             
-            We don't just rent equipment; we deliver an experience. From massive
+            We don't just rent equipment, we deliver an experience. From massive
             themed slides to a paradise of snack machines, we bring the fun
             directly to your doorstep, handling everything from delivery and
             setup to supervision and pack-up.
@@ -267,7 +267,7 @@ export function AboutPage() {
             Our Service Area
           </h2>
           <p className="text-gray-600">
-            Based in Ras Al Khaimah, proudly delivering to all corners of the
+            Based in Ajman, proudly delivering to all corners of the
             UAE.
           </p>
         </div>

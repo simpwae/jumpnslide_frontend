@@ -21,7 +21,7 @@ export function Footer() {
               party experiences across the UAE.
             </p>
             <div className="inline-block px-4 py-2 bg-white/10 rounded-lg border border-white/20 text-sm font-medium">
-              📍 Based in RAK · Serving all 7 Emirates
+              📍 Based in Ajman · Serving all 7 Emirates
             </div>
           </div>
 

@@ -103,7 +103,7 @@ export function ContactPage() {
                   <div>
                     <p className="font-bold text-brand-navy">Location</p>
                     <p className="text-gray-600 text-lg">
-                      Based in Ras Al Khaimah
+                      Based in Ajman
                     </p>
                     <p className="text-sm text-gray-500">
                       Serving all 7 UAE Emirates

@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
-import { CheckCircleIcon, LandmarkIcon, CopyIcon, BanknoteIcon } from 'lucide-react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { CheckCircleIcon, LandmarkIcon, CopyIcon, BanknoteIcon, Loader2Icon } from 'lucide-react';
 import emailjs from '@emailjs/browser';
 import { supabase } from '../lib/supabase';
 
 const EMAILJS_SERVICE_ID = 'service_wdhb3u5';
 const EMAILJS_OWNER_TEMPLATE = 'template_p9pinem';
 const EMAILJS_PUBLIC_KEY = 'hF4zI9NwINt2gOzUa';
+
+interface BankSettings {
+  bank_name: string;
+  account_name: string;
+  iban: string;
+  phone: string;
+}
 
 export function PaymentPage() {
   const { ref } = useParams<{ ref: string }>();
@@ -19,11 +26,37 @@ export function PaymentPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loadingBooking, setLoadingBooking] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [bankSettings, setBankSettings] = useState<BankSettings>({
+    bank_name: 'Emirates NBD',
+    account_name: 'Jump N Slide 4 Kids',
+    iban: 'AE12 3456 7890 1234 5678 90',
+    phone: '+971 50 647 7052',
+  });
   const [formData, setFormData] = useState({
     bank: '',
     accountHolder: '',
     transferRef: '',
   });
+
+  // Fetch bank settings from Supabase
+  useEffect(() => {
+    supabase
+      .from('settings')
+      .select('bank_name, account_name, iban, phone')
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setBankSettings({
+            bank_name: data.bank_name || 'Emirates NBD',
+            account_name: data.account_name || 'Jump N Slide 4 Kids',
+            iban: data.iban || 'AE12 3456 7890 1234 5678 90',
+            phone: data.phone || '+971 50 647 7052',
+          });
+        }
+        setLoadingSettings(false);
+      });
+  }, []);
 
   // Fetch booking from Supabase if page is refreshed (state lost)
   useEffect(() => {
@@ -51,9 +84,7 @@ export function PaymentPage() {
               address: data.address,
             });
           }
-          if (error) {
-            console.error('Could not fetch booking:', error);
-          }
+          if (error) console.error('Could not fetch booking:', error);
           setLoadingBooking(false);
         });
     }
@@ -63,7 +94,6 @@ export function PaymentPage() {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      // iOS Safari fallback
       const el = document.createElement('textarea');
       el.value = text;
       document.body.appendChild(el);
@@ -75,12 +105,15 @@ export function PaymentPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Format IBAN for copy — remove spaces
+  const ibanForCopy = bankSettings.iban.replace(/\s/g, '');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
 
     const submissionTime = new Date().toLocaleString('en-AE', {
-      timeZone: 'Asia/Dubai'
+      timeZone: 'Asia/Dubai',
     });
 
     const templateParams = {
@@ -101,7 +134,7 @@ export function PaymentPage() {
     };
 
     try {
-      // Update booking status in Supabase
+      // Update booking in Supabase
       const { error } = await supabase
         .from('bookings')
         .update({
@@ -121,7 +154,7 @@ export function PaymentPage() {
       setStatus('submitted');
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
-      // Send email separately — non-critical
+      // Send email — non-critical
       try {
         await emailjs.send(
           EMAILJS_SERVICE_ID,
@@ -135,13 +168,13 @@ export function PaymentPage() {
 
     } catch (error) {
       console.error('Error:', error);
-      alert('Failed to submit. Please WhatsApp us at +971 50 647 7052.');
+      alert(`Failed to submit. Please WhatsApp us at ${bankSettings.phone}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Success screen
+  // ── Success screen ─────────────────────────────────────────────────────────
   if (status === 'submitted') {
     return (
       <main className="pt-32 pb-24 min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -173,11 +206,15 @@ export function PaymentPage() {
   if (loadingBooking) {
     return (
       <main className="pt-32 pb-24 min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Loading your booking...</p>
+        <div className="text-center">
+          <Loader2Icon className="w-8 h-8 text-brand-blue animate-spin mx-auto mb-3" />
+          <p className="text-gray-500">Loading your booking...</p>
+        </div>
       </main>
     );
   }
 
+  // ── Main render ────────────────────────────────────────────────────────────
   return (
     <main className="pt-24 pb-24 min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -229,31 +266,40 @@ export function PaymentPage() {
             <h2 className="font-bold text-brand-navy">Transfer To This Account</h2>
           </div>
           <div className="p-5 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Bank Name</span>
-              <span className="font-medium text-brand-navy">Emirates NBD</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Account Name</span>
-              <span className="font-medium text-brand-navy">Jump N Slide 4 Kids</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-500">IBAN</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-brand-navy tracking-wider">
-                  AE12 3456 7890 1234 5678 90
-                </span>
-                <button
-                  onClick={() => handleCopy('AE12345678901234567890')}
-                  className="text-brand-blue hover:text-blue-700"
-                  title="Copy IBAN"
-                >
-                  <CopyIcon className="w-4 h-4" />
-                </button>
+            {loadingSettings ? (
+              <div className="flex items-center gap-2 text-gray-400 py-2">
+                <Loader2Icon className="w-4 h-4 animate-spin" />
+                Loading bank details...
               </div>
-            </div>
-            {copied && (
-              <p className="text-green-500 text-xs text-right">Copied!</p>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Bank Name</span>
+                  <span className="font-medium text-brand-navy">{bankSettings.bank_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Account Name</span>
+                  <span className="font-medium text-brand-navy">{bankSettings.account_name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">IBAN</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-brand-navy tracking-wider">
+                      {bankSettings.iban}
+                    </span>
+                    <button
+                      onClick={() => handleCopy(ibanForCopy)}
+                      className="text-brand-blue hover:text-blue-700 transition-colors"
+                      title="Copy IBAN"
+                    >
+                      <CopyIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                {copied && (
+                  <p className="text-green-500 text-xs text-right">Copied!</p>
+                )}
+              </>
             )}
             <div className="flex justify-between pt-3 border-t border-gray-100">
               <span className="font-bold text-brand-navy">Amount to Transfer</span>
@@ -274,7 +320,11 @@ export function PaymentPage() {
               Ready to Transfer?
             </h2>
             <p className="text-gray-500 text-sm mb-6">
-              Please transfer <span className="font-bold text-brand-blue">AED {booking?.advanceAmount}</span> to the account above using your banking app, then come back and confirm below.
+              Please transfer{' '}
+              <span className="font-bold text-brand-blue">
+                AED {booking?.advanceAmount}
+              </span>{' '}
+              to the account above using your banking app, then come back and confirm below.
             </p>
             <button
               onClick={() => setHasTransferred(true)}
@@ -287,8 +337,7 @@ export function PaymentPage() {
             </p>
           </div>
         ) : (
-
-          /* State 2 — After Transfer — Confirmation Form */
+          /* State 2 — Confirmation Form */
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
             <div className="flex items-center mb-2">
               <CheckCircleIcon className="w-5 h-5 text-green-500 mr-2" />
@@ -341,7 +390,9 @@ export function PaymentPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Transaction Reference{' '}
-                  <span className="text-gray-400 font-normal">(Optional but recommended)</span>
+                  <span className="text-gray-400 font-normal">
+                    (Optional but recommended)
+                  </span>
                 </label>
                 <input
                   type="text"
@@ -358,7 +409,7 @@ export function PaymentPage() {
               <button
                 type="submit"
                 disabled={isProcessing}
-                className="w-full py-4 bg-gradient-brand text-white rounded-xl font-bold text-lg hover:opacity-90 transition-opacity disabled:opacity-50 pb-safe"
+                className="w-full py-4 bg-gradient-brand text-white rounded-xl font-bold text-lg hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {isProcessing ? 'Submitting...' : 'Submit & Confirm Booking'}
               </button>

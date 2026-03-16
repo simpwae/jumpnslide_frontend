@@ -48,15 +48,21 @@ export function BookingPage() {
   const today = new Date().toISOString().split('T')[0];
 
 
-  const emirates = [
-    'Ras Al Khaimah', 'Dubai', 'Sharjah', 'Ajman',
-    'Umm Al Quwain', 'Abu Dhabi', 'Fujairah'
-  ];
+ const emirates = [
+  'Ras Al Khaimah', 'Dubai', 'Sharjah', 'Ajman',
+  'Umm Al Quwain', 'Abu Dhabi', 'Fujairah', 'Al Ain'
+];
 
-  const deliveryCharges: Record<string, number> = {
-    'Ras Al Khaimah': 50, Dubai: 150, Sharjah: 100,
-    Ajman: 100, 'Umm Al Quwain': 80, 'Abu Dhabi': 250, Fujairah: 200
-  };
+const deliveryCharges: Record<string, number> = {
+  'Ras Al Khaimah': 70,
+  'Dubai': 150,
+  'Sharjah': 150,
+  'Ajman': 120,
+  'Umm Al Quwain': 100,
+  'Abu Dhabi': 180,
+  'Fujairah': 150,
+  'Al Ain': 180,
+};
 
   const deliveryFee = deliveryCharges[formData.emirate] || 0;
   const total = pkg.price + deliveryFee;

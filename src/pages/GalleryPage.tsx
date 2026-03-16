@@ -10,25 +10,31 @@ import 'yet-another-react-lightbox/plugins/counter.css';
 import { supabase } from '../lib/supabase';
 
 const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'birthday', label: 'Birthday Parties' },
-  { id: 'splash', label: 'Splash Events' },
-  { id: 'theme', label: 'Theme Parties' },
-  { id: 'gender-reveal', label: 'Gender Reveal' },
-  { id: 'anniversary', label: 'Anniversary' },
-  { id: 'school', label: 'School Events' },
-  { id: 'eid', label: 'Eid Celebrations' },
+  { id: 'all', label: 'All', color: 'bg-brand-navy text-white', activeColor: 'bg-brand-navy' },
+  { id: 'birthday', label: 'Birthday Parties', color: 'bg-pink-500 text-white', activeColor: 'bg-pink-500' },
+  { id: 'splash', label: 'Splash Events', color: 'bg-cyan-500 text-white', activeColor: 'bg-cyan-500' },
+  { id: 'theme', label: 'Theme Parties', color: 'bg-purple-500 text-white', activeColor: 'bg-purple-500' },
+  { id: 'gender-reveal', label: 'Gender Reveal', color: 'bg-rose-400 text-white', activeColor: 'bg-rose-400' },
+  { id: 'anniversary', label: 'Anniversary', color: 'bg-amber-500 text-white', activeColor: 'bg-amber-500' },
+  { id: 'school', label: 'School Events', color: 'bg-emerald-500 text-white', activeColor: 'bg-emerald-500' },
+  { id: 'eid', label: 'Eid Celebrations', color: 'bg-orange-500 text-white', activeColor: 'bg-orange-500' },
 ];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  birthday: 'Birthday Party',
-  splash: 'Splash Event',
-  theme: 'Theme Party',
-  'gender-reveal': 'Gender Reveal',
-  anniversary: 'Anniversary',
-  school: 'School Event',
-  eid: 'Eid Celebration',
+const CATEGORY_COLORS: Record<string, string> = {
+  birthday: 'bg-pink-500',
+  splash: 'bg-cyan-500',
+  theme: 'bg-purple-500',
+  'gender-reveal': 'bg-rose-400',
+  anniversary: 'bg-amber-500',
+  school: 'bg-emerald-500',
+  eid: 'bg-orange-500',
 };
+
+// Map of category id -> human-facing label (derived from CATEGORIES)
+const CATEGORY_LABELS: Record<string, string> = CATEGORIES.reduce((acc, c) => {
+  acc[c.id] = c.label;
+  return acc;
+}, {} as Record<string, string>);
 
 interface Album {
   id: string;
@@ -62,18 +68,18 @@ export function GalleryPage() {
     fetchAlbums();
   }, []);
 
-  const fetchAlbums = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('gallery_albums')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      // Only show albums with at least 1 photo
-      setAlbums(data.filter(a => a.photo_count > 0));
-    }
-    setLoading(false);
-  };
+const fetchAlbums = async () => {
+  setLoading(true);
+  const { data, error } = await supabase
+    .from('gallery_albums')
+    .select('*')
+    .eq('is_published', true)  // ← ADD THIS
+    .order('created_at', { ascending: false });
+  if (!error && data) {
+    setAlbums(data.filter(a => a.photo_count > 0));
+  }
+  setLoading(false);
+};
 
   const openAlbum = async (album: Album) => {
     setSelectedAlbum(album);
@@ -139,22 +145,22 @@ export function GalleryPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-        {/* Category Filter */}
-        <div className="flex flex-wrap gap-2 mb-10 justify-center">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                activeCategory === cat.id
-                  ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/25'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
+                {/* Category Filter */}
+          <div className="flex flex-wrap gap-2 mb-10 justify-center">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm ${
+                  activeCategory === cat.id
+                    ? `${cat.color} shadow-lg scale-105`
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -302,9 +308,9 @@ function AlbumCard({ album, featured, index, onOpen, onShare }: AlbumCardProps) 
         {/* Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-        {/* Category Badge */}
+              {/* Category Badge */}
         <div className="absolute top-3 left-3">
-          <span className="bg-brand-blue/90 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
+          <span className={`${CATEGORY_COLORS[album.category] || 'bg-brand-blue'} backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium`}>
             {CATEGORY_LABELS[album.category] || album.category}
           </span>
         </div>

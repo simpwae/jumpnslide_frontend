@@ -73,7 +73,7 @@ function HeroSection() {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="text-lg md:text-2xl text-white/90 mb-10 max-w-2xl mx-auto font-light"
         >
-          Inflatables, snack machines, themed decorations — delivered to your
+          Inflatables, snack machines, themed decorations delivered to your
           doorstep across UAE.
         </motion.p>
         <motion.div
@@ -91,7 +91,7 @@ function HeroSection() {
           <div className="mt-6 inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
             <span className="text-xl mr-2">✨</span>
             <span className="text-white text-sm font-medium">
-              Trusted by 400+ happy families across UAE
+              Trusted by 1000+ happy families across UAE
             </span>
           </div>
         </motion.div>
@@ -222,6 +222,7 @@ function RecentEvents() {
       .from('gallery_albums')
       .select('*')
       .eq('is_featured', true)
+      .eq('is_published', true) 
       .gt('photo_count', 0)
       .order('created_at', { ascending: false })
       .limit(6)
@@ -368,13 +369,13 @@ function Testimonials() {
             What Parents Say
           </h2>
           <div className="inline-flex items-center bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
-            <span className="font-bold text-brand-navy mr-2">4.8</span>
+            <span className="font-bold text-brand-navy mr-2">4.9</span>
             <div className="flex mr-2">
               {[...Array(5)].map((_, i) => (
                 <StarIcon key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
               ))}
             </div>
-            <span className="text-gray-600 text-sm">from 47 families</span>
+            <span className="text-gray-600 text-sm">from 867 families</span>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
